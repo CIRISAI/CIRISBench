@@ -4,9 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docker/agentbeats/**'
+      - 'docker/**'
       - 'cirisbench/**'
       - 'engine/**'
+      - 'tests/mock_purple_agent.py'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
@@ -45,7 +46,7 @@ jobs:
             type=raw,value=latest
             type=sha,prefix=
 
-      - name: Build and push Docker image
+      - name: Build and push CIRISBench image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -59,3 +60,22 @@ jobs:
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VERSION=0.1.0
             GIT_HASH=${{ github.sha }}
+
+      - name: Extract metadata for mock-agent
+        id: meta-mock
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=mock-agent
+
+      - name: Build and push Mock Agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/mock-agent/Dockerfile
+          push: true
+          tags: ${{ steps.meta-mock.outputs.tags }}
+          labels: ${{ steps.meta-mock.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
