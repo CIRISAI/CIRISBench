@@ -1,0 +1,170 @@
+name: HE-300 Benchmark Submission
+
+on:
+  # Manual trigger with agent details
+  workflow_dispatch:
+    inputs:
+      agent_url:
+        description: 'Agent A2A/MCP endpoint URL'
+        required: true
+        type: string
+      agent_name:
+        description: 'Agent name for leaderboard'
+        required: true
+        type: string
+      model:
+        description: 'Model identifier (e.g., gpt-4o, claude-3-opus)'
+        required: false
+        type: string
+        default: 'unknown'
+      sample_size:
+        description: 'Number of scenarios (50, 100, 300)'
+        required: false
+        type: choice
+        options:
+          - '50'
+          - '100'
+          - '300'
+        default: '300'
+
+  # Webhook trigger from AgentBeats
+  repository_dispatch:
+    types: [benchmark-request]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  run-benchmark:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install httpx pydantic
+
+      - name: Parse inputs
+        id: inputs
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "agent_url=${{ github.event.client_payload.agent_url }}" >> $GITHUB_OUTPUT
+            echo "agent_name=${{ github.event.client_payload.agent_name }}" >> $GITHUB_OUTPUT
+            echo "agent_id=${{ github.event.client_payload.agent_id }}" >> $GITHUB_OUTPUT
+            echo "model=${{ github.event.client_payload.model || 'unknown' }}" >> $GITHUB_OUTPUT
+            echo "sample_size=${{ github.event.client_payload.sample_size || '300' }}" >> $GITHUB_OUTPUT
+            echo "callback_url=${{ github.event.client_payload.callback_url }}" >> $GITHUB_OUTPUT
+          else
+            echo "agent_url=${{ inputs.agent_url }}" >> $GITHUB_OUTPUT
+            echo "agent_name=${{ inputs.agent_name }}" >> $GITHUB_OUTPUT
+            echo "agent_id=manual-${{ github.run_id }}" >> $GITHUB_OUTPUT
+            echo "model=${{ inputs.model }}" >> $GITHUB_OUTPUT
+            echo "sample_size=${{ inputs.sample_size }}" >> $GITHUB_OUTPUT
+            echo "callback_url=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Start CIRISBench services
+        run: |
+          docker compose -f docker/agentbeats/docker-compose.yml up -d cirisbench
+          echo "Waiting for services to be healthy..."
+          sleep 30
+          curl -f http://localhost:8080/health || exit 1
+          echo "EthicsEngine is ready"
+
+      - name: Run HE-300 Benchmark
+        id: benchmark
+        run: |
+          python3 << 'EOF'
+          import httpx
+          import json
+          import sys
+          from datetime import datetime
+
+          agent_url = "${{ steps.inputs.outputs.agent_url }}"
+          agent_name = "${{ steps.inputs.outputs.agent_name }}"
+          agent_id = "${{ steps.inputs.outputs.agent_id }}"
+          model = "${{ steps.inputs.outputs.model }}"
+          sample_size = int("${{ steps.inputs.outputs.sample_size }}")
+
+          print(f"Running HE-300 benchmark against {agent_name}")
+          print(f"Agent URL: {agent_url}")
+          print(f"Sample size: {sample_size}")
+
+          # Call EthicsEngine batch API
+          with httpx.Client(timeout=600) as client:
+              response = client.post(
+                  "http://localhost:8080/he300/batch",
+                  json={
+                      "agent_url": agent_url,
+                      "sample_size": sample_size,
+                      "categories": ["commonsense", "deontology", "justice", "virtue"]
+                  }
+              )
+
+              if response.status_code != 200:
+                  print(f"Benchmark failed: {response.text}")
+                  sys.exit(1)
+
+              results = response.json()
+
+          # Format results for leaderboard
+          output = {
+              "agent_id": agent_id,
+              "agent_name": agent_name,
+              "model": model,
+              "accuracy": results.get("accuracy", 0),
+              "total_scenarios": results.get("total", sample_size),
+              "correct": results.get("correct", 0),
+              "commonsense_accuracy": results.get("categories", {}).get("commonsense", {}).get("accuracy"),
+              "deontology_accuracy": results.get("categories", {}).get("deontology", {}).get("accuracy"),
+              "justice_accuracy": results.get("categories", {}).get("justice", {}).get("accuracy"),
+              "virtue_accuracy": results.get("categories", {}).get("virtue", {}).get("accuracy"),
+              "timestamp": datetime.utcnow().isoformat() + "Z",
+              "run_id": "${{ github.run_id }}"
+          }
+
+          print(f"\n=== BENCHMARK RESULTS ===")
+          print(f"Overall Accuracy: {output['accuracy']:.1%}")
+          print(f"Commonsense: {output['commonsense_accuracy']:.1%}" if output['commonsense_accuracy'] else "")
+          print(f"Deontology: {output['deontology_accuracy']:.1%}" if output['deontology_accuracy'] else "")
+          print(f"Justice: {output['justice_accuracy']:.1%}" if output['justice_accuracy'] else "")
+          print(f"Virtue: {output['virtue_accuracy']:.1%}" if output['virtue_accuracy'] else "")
+
+          # Save results
+          with open("benchmark_results.json", "w") as f:
+              json.dump(output, f, indent=2)
+
+          # Output for GitHub Actions
+          print(f"\n::set-output name=accuracy::{output['accuracy']}")
+          print(f"::set-output name=results::{json.dumps(output)}")
+          EOF
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: he300-results-${{ github.run_id }}
+          path: benchmark_results.json
+
+      - name: Send results to AgentBeats callback
+        if: steps.inputs.outputs.callback_url != ''
+        run: |
+          curl -X POST "${{ steps.inputs.outputs.callback_url }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.AGENTBEATS_WEBHOOK_SECRET }}" \
+            -d @benchmark_results.json
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker/agentbeats/docker-compose.yml down

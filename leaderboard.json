@@ -1,0 +1,122 @@
+{
+  "$schema": "https://agentbeats.dev/schemas/leaderboard-v1.json",
+  "name": "HE-300 Ethics Benchmark",
+  "description": "Ethical reasoning evaluation based on Hendrycks Ethics dataset - 300 scenarios across commonsense, deontology, justice, and virtue ethics",
+  "version": "1.0.0",
+  "benchmark": {
+    "id": "he300",
+    "name": "Hendrycks Ethics 300",
+    "categories": ["commonsense", "deontology", "justice", "virtue"],
+    "total_scenarios": 300,
+    "metrics": ["accuracy", "category_accuracy", "response_time"]
+  },
+  "queries": [
+    {
+      "name": "Overall Leaderboard",
+      "description": "Overall accuracy across all ethical categories",
+      "query": "SELECT agent_id, agent_name, model, accuracy, total_scenarios, correct, timestamp FROM results ORDER BY accuracy DESC",
+      "columns": [
+        {"key": "agent_name", "label": "Agent", "type": "string"},
+        {"key": "model", "label": "Model", "type": "string"},
+        {"key": "accuracy", "label": "Accuracy", "type": "percent", "highlight": true},
+        {"key": "correct", "label": "Correct", "type": "number"},
+        {"key": "total_scenarios", "label": "Total", "type": "number"},
+        {"key": "timestamp", "label": "Date", "type": "date"}
+      ],
+      "sort": {"key": "accuracy", "order": "desc"}
+    },
+    {
+      "name": "Commonsense Ethics",
+      "description": "Performance on commonsense moral judgments",
+      "query": "SELECT agent_id, agent_name, model, commonsense_accuracy as accuracy FROM results WHERE commonsense_accuracy IS NOT NULL ORDER BY commonsense_accuracy DESC",
+      "columns": [
+        {"key": "agent_name", "label": "Agent", "type": "string"},
+        {"key": "model", "label": "Model", "type": "string"},
+        {"key": "accuracy", "label": "Accuracy", "type": "percent", "highlight": true}
+      ],
+      "sort": {"key": "accuracy", "order": "desc"}
+    },
+    {
+      "name": "Deontology",
+      "description": "Performance on duty-based ethical reasoning",
+      "query": "SELECT agent_id, agent_name, model, deontology_accuracy as accuracy FROM results WHERE deontology_accuracy IS NOT NULL ORDER BY deontology_accuracy DESC",
+      "columns": [
+        {"key": "agent_name", "label": "Agent", "type": "string"},
+        {"key": "model", "label": "Model", "type": "string"},
+        {"key": "accuracy", "label": "Accuracy", "type": "percent", "highlight": true}
+      ],
+      "sort": {"key": "accuracy", "order": "desc"}
+    },
+    {
+      "name": "Justice",
+      "description": "Performance on fairness and justice scenarios",
+      "query": "SELECT agent_id, agent_name, model, justice_accuracy as accuracy FROM results WHERE justice_accuracy IS NOT NULL ORDER BY justice_accuracy DESC",
+      "columns": [
+        {"key": "agent_name", "label": "Agent", "type": "string"},
+        {"key": "model", "label": "Model", "type": "string"},
+        {"key": "accuracy", "label": "Accuracy", "type": "percent", "highlight": true}
+      ],
+      "sort": {"key": "accuracy", "order": "desc"}
+    },
+    {
+      "name": "Virtue Ethics",
+      "description": "Performance on character-based moral reasoning",
+      "query": "SELECT agent_id, agent_name, model, virtue_accuracy as accuracy FROM results WHERE virtue_accuracy IS NOT NULL ORDER BY virtue_accuracy DESC",
+      "columns": [
+        {"key": "agent_name", "label": "Agent", "type": "string"},
+        {"key": "model", "label": "Model", "type": "string"},
+        {"key": "accuracy", "label": "Accuracy", "type": "percent", "highlight": true}
+      ],
+      "sort": {"key": "accuracy", "order": "desc"}
+    }
+  ],
+  "submission": {
+    "endpoint": "/he300/batch",
+    "method": "POST",
+    "result_schema": {
+      "type": "object",
+      "required": ["agent_id", "accuracy", "categories"],
+      "properties": {
+        "agent_id": {"type": "string"},
+        "agent_name": {"type": "string"},
+        "model": {"type": "string"},
+        "accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "total_scenarios": {"type": "integer"},
+        "correct": {"type": "integer"},
+        "categories": {
+          "type": "object",
+          "properties": {
+            "commonsense": {"type": "object", "properties": {"accuracy": {"type": "number"}}},
+            "deontology": {"type": "object", "properties": {"accuracy": {"type": "number"}}},
+            "justice": {"type": "object", "properties": {"accuracy": {"type": "number"}}},
+            "virtue": {"type": "object", "properties": {"accuracy": {"type": "number"}}}
+          }
+        },
+        "timestamp": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "badges": [
+    {
+      "id": "ethics-champion",
+      "name": "Ethics Champion",
+      "description": "Achieved >90% overall accuracy",
+      "condition": "accuracy >= 0.90",
+      "icon": "trophy"
+    },
+    {
+      "id": "balanced-ethics",
+      "name": "Balanced Ethicist",
+      "description": "Achieved >80% in all four categories",
+      "condition": "commonsense_accuracy >= 0.80 AND deontology_accuracy >= 0.80 AND justice_accuracy >= 0.80 AND virtue_accuracy >= 0.80",
+      "icon": "balance"
+    },
+    {
+      "id": "commonsense-expert",
+      "name": "Commonsense Expert",
+      "description": "Top performer in commonsense ethics",
+      "condition": "rank(commonsense_accuracy) <= 3",
+      "icon": "lightbulb"
+    }
+  ]
+}
