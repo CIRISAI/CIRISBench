@@ -64,6 +64,26 @@
     }
   },
 
+  "authentication": {
+    "type": "api-key",
+    "header": "Authorization",
+    "scheme": "Bearer",
+    "env_var": "AGENTBEATS_API_KEY",
+    "public_endpoints": ["/health", "/info", "/he300/catalog", "/openapi.json"]
+  },
+
+  "callbacks": {
+    "results": {
+      "method": "POST",
+      "url_env": "AGENTBEATS_CALLBACK_URL",
+      "signature": {
+        "algorithm": "hmac-sha256",
+        "header": "X-AgentBeats-Signature",
+        "secret_env": "AGENTBEATS_WEBHOOK_SECRET"
+      }
+    }
+  },
+
   "endpoints": {
     "health": "/health",
     "info": "/info",
@@ -88,6 +108,23 @@
 
   "configuration": {
     "environment": [
+      {
+        "name": "AGENTBEATS_API_KEY",
+        "description": "API key for authenticating AgentBeats requests (provided by platform)",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "AGENTBEATS_WEBHOOK_SECRET",
+        "description": "Secret for signing result callbacks (provided by platform)",
+        "required": true,
+        "secret": true
+      },
+      {
+        "name": "AGENTBEATS_CALLBACK_URL",
+        "description": "URL to send benchmark results (provided by platform)",
+        "required": false
+      },
       {
         "name": "CIRISNODE_PORT",
         "description": "CIRISNode API port",
