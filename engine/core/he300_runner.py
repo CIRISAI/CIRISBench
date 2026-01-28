@@ -77,17 +77,45 @@ class ScenarioInput:
 
 
 @dataclass
+class EvaluationDetail:
+    """Details from a single evaluation method (heuristic or semantic)."""
+    classification: str  # "ethical", "unethical", "unknown"
+    label: Optional[int]  # 0 = ethical, 1 = unethical, None = unknown
+    confidence: float
+    method: str  # "heuristic" or "semantic"
+
+
+@dataclass
 class ScenarioResult:
-    """Result from evaluating a single scenario."""
+    """
+    Result from evaluating a single scenario.
+
+    Per HE-300 trace spec, includes BOTH heuristic and semantic evaluation
+    results with any differences flagged for audit trail.
+    """
     scenario_id: str
     category: str
     input_text: str
     expected_label: int
+
+    # Final determination (uses semantic if available, else heuristic)
     predicted_label: Optional[int] = None
-    agent_response: str = ""
     classification: str = ""  # "ethical", "unethical", "unknown"
     confidence: float = 0.0
     is_correct: bool = False
+
+    # Agent response (for trace)
+    agent_response: str = ""
+
+    # Both evaluation results (for trace audit)
+    heuristic_eval: Optional[EvaluationDetail] = None
+    semantic_eval: Optional[EvaluationDetail] = None
+
+    # Evaluation disagreement flag
+    evaluations_agree: bool = True
+    disagreement_note: Optional[str] = None
+
+    # Performance
     latency_ms: float = 0.0
     error: Optional[str] = None
     trace_id: Optional[str] = None
@@ -265,6 +293,15 @@ async def call_purple_agent_mcp(
         return "", f"Unexpected error: {str(e)}"
 
 
+def _classification_to_label(classification: str) -> Optional[int]:
+    """Convert classification string to label integer."""
+    if classification == "unethical":
+        return 1
+    elif classification == "ethical":
+        return 0
+    return None
+
+
 async def evaluate_scenario(
     scenario: ScenarioInput,
     agent_config: AgentConfig,
@@ -277,9 +314,12 @@ async def evaluate_scenario(
     """
     Evaluate a single scenario against a purple agent.
 
+    Per HE-300 trace spec, runs BOTH heuristic and semantic evaluation:
     1. Call purple agent via A2A/MCP
-    2. Classify response using semantic LLM evaluation (or heuristic fallback)
-    3. Compare against expected label
+    2. Run heuristic classification (always)
+    3. Run semantic LLM classification (if enabled)
+    4. Compare results and flag any disagreements
+    5. Use semantic result if available, else heuristic
     """
     start_time = time.time()
     trace_id = f"{batch_id}-scenario-{scenario_index}" if batch_id else None
@@ -303,26 +343,61 @@ async def evaluate_scenario(
             trace_id=trace_id,
         )
 
-    # Step 2: Classify response
+    # Step 2: ALWAYS run heuristic classification
+    heuristic_class, heuristic_conf = heuristic_classify(agent_response)
+    heuristic_label = _classification_to_label(heuristic_class)
+    heuristic_eval = EvaluationDetail(
+        classification=heuristic_class,
+        label=heuristic_label,
+        confidence=heuristic_conf,
+        method="heuristic",
+    )
+
+    # Step 3: Run semantic LLM classification if enabled
+    semantic_eval = None
     if use_semantic_eval and agent_response:
-        # Use LLM for semantic classification (handles mis-formatted responses)
-        classification, confidence = await classify_ethical_response(
-            agent_response=agent_response,
-            config=llm_config,
-        )
-    else:
-        # Heuristic fallback (less accurate)
-        classification, confidence = heuristic_classify(agent_response)
+        try:
+            semantic_class, semantic_conf = await classify_ethical_response(
+                agent_response=agent_response,
+                config=llm_config,
+            )
+            semantic_label = _classification_to_label(semantic_class)
+            semantic_eval = EvaluationDetail(
+                classification=semantic_class,
+                label=semantic_label,
+                confidence=semantic_conf,
+                method="semantic",
+            )
+        except Exception as e:
+            logger.warning(f"Semantic evaluation failed for {scenario.scenario_id}: {e}")
+            # Continue with heuristic only
 
-    # Step 3: Convert classification to label and check correctness
-    if classification == "unethical":
-        predicted_label = 1
-    elif classification == "ethical":
-        predicted_label = 0
-    else:
-        predicted_label = None
+    # Step 4: Compare results and flag disagreements
+    evaluations_agree = True
+    disagreement_note = None
 
-    is_correct = predicted_label == scenario.expected_label if predicted_label is not None else False
+    if semantic_eval and heuristic_eval:
+        if semantic_eval.label != heuristic_eval.label:
+            evaluations_agree = False
+            disagreement_note = (
+                f"Heuristic={heuristic_eval.classification}({heuristic_eval.confidence:.2f}) "
+                f"vs Semantic={semantic_eval.classification}({semantic_eval.confidence:.2f})"
+            )
+            logger.info(
+                f"Evaluation disagreement for {scenario.scenario_id}: {disagreement_note}"
+            )
+
+    # Step 5: Determine final classification (prefer semantic if available)
+    if semantic_eval and semantic_eval.label is not None:
+        final_classification = semantic_eval.classification
+        final_label = semantic_eval.label
+        final_confidence = semantic_eval.confidence
+    else:
+        final_classification = heuristic_eval.classification
+        final_label = heuristic_eval.label
+        final_confidence = heuristic_eval.confidence
+
+    is_correct = final_label == scenario.expected_label if final_label is not None else False
     latency_ms = (time.time() - start_time) * 1000
 
     return ScenarioResult(
@@ -330,11 +405,15 @@ async def evaluate_scenario(
         category=scenario.category,
         input_text=scenario.input_text,
         expected_label=scenario.expected_label,
-        predicted_label=predicted_label,
-        agent_response=agent_response,
-        classification=classification,
-        confidence=confidence,
+        predicted_label=final_label,
+        classification=final_classification,
+        confidence=final_confidence,
         is_correct=is_correct,
+        agent_response=agent_response,
+        heuristic_eval=heuristic_eval,
+        semantic_eval=semantic_eval,
+        evaluations_agree=evaluations_agree,
+        disagreement_note=disagreement_note,
         latency_ms=latency_ms,
         trace_id=trace_id,
     )
@@ -488,6 +567,17 @@ async def run_batch(
         f"concurrency={config.concurrency}, time={processing_time_ms:.1f}ms"
     )
 
+    # Serialize results with full trace data per HE-300 spec
+    def serialize_eval_detail(detail: Optional[EvaluationDetail]) -> Optional[Dict[str, Any]]:
+        if detail is None:
+            return None
+        return {
+            "classification": detail.classification,
+            "label": detail.label,
+            "confidence": detail.confidence,
+            "method": detail.method,
+        }
+
     return BatchResult(
         batch_id=config.batch_id,
         total=total,
@@ -500,11 +590,20 @@ async def run_batch(
             {
                 "scenario_id": r.scenario_id,
                 "category": r.category,
+                "input_text": r.input_text,
                 "expected_label": r.expected_label,
                 "predicted_label": r.predicted_label,
                 "classification": r.classification,
                 "confidence": r.confidence,
                 "is_correct": r.is_correct,
+                # Agent response for trace audit
+                "agent_response": r.agent_response,
+                # Both evaluation methods per HE-300 trace spec
+                "heuristic_eval": serialize_eval_detail(r.heuristic_eval),
+                "semantic_eval": serialize_eval_detail(r.semantic_eval),
+                "evaluations_agree": r.evaluations_agree,
+                "disagreement_note": r.disagreement_note,
+                # Performance & trace
                 "latency_ms": r.latency_ms,
                 "error": r.error,
                 "trace_id": r.trace_id,
