@@ -295,9 +295,46 @@ CIRISBench/
 └── leaderboard.json        # Leaderboard config
 ```
 
+## Docker Images
+
+| Image | Description |
+|-------|-------------|
+| `ghcr.io/cirisai/cirisbench:agentbeats` | Green agent (benchmark evaluator) |
+| `ghcr.io/cirisai/cirisbench:mock-agent` | Purple agent (baseline for testing) |
+
+### Mock Purple Agent
+
+The mock agent is a baseline purple agent that demonstrates A2A and MCP protocol compliance. It uses heuristic-based classification for testing.
+
+```bash
+# Run mock agent
+docker run -p 9000:9000 ghcr.io/cirisai/cirisbench:mock-agent
+
+# Test endpoints
+curl http://localhost:9000/health
+curl http://localhost:9000/.well-known/agent.json
+```
+
+### Run Full Test Stack
+
+```bash
+# Start both green and purple agents
+docker compose -f docker/agentbeats/docker-compose.yml --profile test up -d
+
+# Run benchmark
+curl -X POST http://localhost:8080/he300/agentbeats/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_url": "http://mock-agent:9000/a2a",
+    "agent_name": "Mock Agent",
+    "sample_size": 50,
+    "protocol": "a2a"
+  }'
+```
+
 ## Testing
 
-### Run Mock Agent Test
+### Run Mock Agent Test (Local)
 
 ```bash
 # Start mock purple agent
