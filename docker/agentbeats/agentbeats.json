@@ -1,0 +1,152 @@
+{
+  "$schema": "https://agentbeats.io/schemas/agent-manifest-v1.json",
+  "name": "cirisbench",
+  "version": "0.1.0",
+  "description": "CIRIS AI Agent Benchmarking Platform - Ethics evaluation and agent testing",
+  "vendor": "CIRIS AI",
+  "homepage": "https://github.com/CIRISAI/CIRISBench",
+
+  "capabilities": {
+    "mcp": {
+      "enabled": true,
+      "version": "1.0",
+      "endpoint": "/mcp",
+      "tools": [
+        {
+          "name": "run_benchmark",
+          "description": "Run HE-300 ethics benchmark against an agent",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "agent_url": { "type": "string", "description": "Agent endpoint URL" },
+              "sample_size": { "type": "integer", "default": 50 },
+              "categories": { "type": "array", "items": { "type": "string" } }
+            },
+            "required": ["agent_url"]
+          }
+        },
+        {
+          "name": "validate_trace",
+          "description": "Validate a CIRIS Ed25519 signed trace",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "trace": { "type": "string", "description": "Base64 encoded trace" },
+              "public_key": { "type": "string", "description": "Ed25519 public key" }
+            },
+            "required": ["trace"]
+          }
+        },
+        {
+          "name": "get_scenario",
+          "description": "Get a specific ethical scenario for testing",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string", "enum": ["commonsense", "deontology", "justice", "virtue"] },
+              "id": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "a2a": {
+      "enabled": true,
+      "version": "1.0",
+      "endpoint": "/a2a",
+      "protocols": ["json-rpc", "rest"],
+      "authentication": ["bearer", "api-key"],
+      "capabilities": [
+        "benchmark-request",
+        "trace-validation",
+        "result-streaming"
+      ]
+    }
+  },
+
+  "endpoints": {
+    "health": "/health",
+    "info": "/info",
+    "openapi": "/openapi.json",
+
+    "cirisnode": {
+      "base": "http://localhost:8000",
+      "health": "/health",
+      "mcp": "/mcp",
+      "a2a": "/a2a",
+      "benchmarks": "/api/benchmarks"
+    },
+
+    "ethicsengine": {
+      "base": "http://localhost:8080",
+      "health": "/health",
+      "he300": "/he300",
+      "batch": "/he300/batch",
+      "catalog": "/he300/catalog"
+    }
+  },
+
+  "configuration": {
+    "environment": [
+      {
+        "name": "CIRISNODE_PORT",
+        "description": "CIRISNode API port",
+        "default": "8000"
+      },
+      {
+        "name": "EEE_PORT",
+        "description": "EthicsEngine API port",
+        "default": "8080"
+      },
+      {
+        "name": "MCP_ENABLED",
+        "description": "Enable MCP protocol support",
+        "default": "true"
+      },
+      {
+        "name": "A2A_ENABLED",
+        "description": "Enable A2A protocol support",
+        "default": "true"
+      },
+      {
+        "name": "OLLAMA_BASE_URL",
+        "description": "Ollama LLM server URL",
+        "default": "http://ollama:11434"
+      },
+      {
+        "name": "LLM_MODEL",
+        "description": "Default LLM model for benchmarks",
+        "default": "llama3.2"
+      },
+      {
+        "name": "HE300_SAMPLE_SIZE",
+        "description": "Default benchmark sample size",
+        "default": "50"
+      }
+    ],
+    "volumes": [
+      {
+        "path": "/data",
+        "description": "Benchmark data and results"
+      },
+      {
+        "path": "/config",
+        "description": "Configuration overrides"
+      }
+    ]
+  },
+
+  "integration": {
+    "docker": {
+      "image": "ghcr.io/cirisai/cirisbench:agentbeats",
+      "ports": ["8000:8000", "8080:8080"],
+      "volumes": ["cirisbench_data:/data", "cirisbench_config:/config"]
+    },
+    "kubernetes": {
+      "chart": "https://charts.ciris.ai/cirisbench",
+      "values": {
+        "agentbeats.enabled": true
+      }
+    }
+  }
+}

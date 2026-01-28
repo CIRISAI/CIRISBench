@@ -1,0 +1,171 @@
+# =============================================================================
+# CIRISBench for AgentBeats - Docker Compose
+# =============================================================================
+#
+# Simplified single-command deployment for AgentBeats integration.
+#
+# Quick Start:
+#   docker compose -f docker/agentbeats/docker-compose.yml up -d
+#
+# With GPU (Ollama):
+#   docker compose -f docker/agentbeats/docker-compose.yml --profile gpu up -d
+#
+# Full stack (with Postgres/Redis):
+#   docker compose -f docker/agentbeats/docker-compose.yml --profile full up -d
+#
+# =============================================================================
+
+name: cirisbench-agentbeats
+
+services:
+  # ===========================================================================
+  # CIRISBench - Unified Container (CIRISNode + EthicsEngine)
+  # ===========================================================================
+  cirisbench:
+    build:
+      context: ../..
+      dockerfile: docker/agentbeats/Dockerfile
+      args:
+        - BUILD_DATE=${BUILD_DATE:-}
+        - VERSION=${VERSION:-0.1.0}
+        - GIT_HASH=${GIT_HASH:-}
+    image: ${DOCKER_REGISTRY:-ghcr.io/cirisai}/cirisbench:${IMAGE_TAG:-agentbeats}
+    container_name: cirisbench
+    ports:
+      - "${CIRISNODE_PORT:-8000}:8000"   # CIRISNode API (MCP/A2A)
+      - "${EEE_PORT:-8080}:8080"         # EthicsEngine API
+    environment:
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+
+      # CIRISNode
+      - CIRISNODE_HOST=0.0.0.0
+      - CIRISNODE_PORT=8000
+      - MCP_ENABLED=${MCP_ENABLED:-true}
+      - A2A_ENABLED=${A2A_ENABLED:-true}
+
+      # EthicsEngine
+      - EEE_HOST=0.0.0.0
+      - EEE_PORT=8080
+      - HE300_ENABLED=true
+      - HE300_SAMPLE_SIZE=${HE300_SAMPLE_SIZE:-50}
+
+      # LLM
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+      # Database (optional)
+      - DATABASE_URL=${DATABASE_URL:-}
+      - REDIS_URL=${REDIS_URL:-}
+    volumes:
+      - cirisbench_data:/data
+      - cirisbench_config:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - agentbeats
+
+  # ===========================================================================
+  # Ollama LLM Server (Optional - GPU profile)
+  # ===========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cirisbench-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - agentbeats
+    profiles:
+      - gpu
+      - full
+
+  # ===========================================================================
+  # PostgreSQL (Optional - full profile)
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: cirisbench-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-ciris}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ciris}
+      - POSTGRES_DB=${POSTGRES_DB:-cirisbench}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ciris}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agentbeats
+    profiles:
+      - full
+
+  # ===========================================================================
+  # Redis (Optional - full profile)
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: cirisbench-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agentbeats
+    profiles:
+      - full
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  cirisbench_data:
+    driver: local
+  cirisbench_config:
+    driver: local
+  ollama_models:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  agentbeats:
+    driver: bridge
+    name: agentbeats-network
