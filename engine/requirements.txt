@@ -8,7 +8,8 @@ requests
 openai # For OpenAI Moderation API and potentially other OpenAI calls
 fastapi
 uvicorn[standard] # ASGI server for FastAPI, [standard] includes performance extras
-httpx # Async HTTP client for GitHub API
+httpx # Async HTTP client for GitHub API and purple agent calls
+certifi # CA certificates for SSL/TLS verification
 pandas # Added for potential UI table displays
 # Add other dependencies as needed, e.g., for specific guardrail classifiers or datasets
 ujson

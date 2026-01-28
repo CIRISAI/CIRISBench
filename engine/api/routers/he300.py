@@ -1155,14 +1155,14 @@ async def sign_batch_ciris(batch_id: str):
 async def ciris_status():
     """
     Get CIRIS validation and signing status.
-    
+
     Returns availability of CIRIS validation features and signing capability.
     """
     status_info = {
         "ciris_validator_available": HAS_CIRIS_VALIDATOR,
         "ed25519_signing": {},
     }
-    
+
     if HAS_CIRIS_VALIDATOR:
         try:
             status_info["ed25519_signing"] = get_signing_status()
@@ -1171,5 +1171,311 @@ async def ciris_status():
                 "available": False,
                 "error": str(e),
             }
-    
+
     return status_info
+
+
+# --- AgentBeats Integration Endpoints ---
+# These endpoints use parallel execution for purple agent testing
+
+# Import the parallel runner
+try:
+    from core.he300_runner import (
+        run_batch,
+        BatchConfig,
+        BatchResult,
+        ScenarioInput,
+        ConcurrencyLevel,
+    )
+    HAS_PARALLEL_RUNNER = True
+except ImportError:
+    HAS_PARALLEL_RUNNER = False
+    logger.warning("Parallel HE-300 runner not available")
+
+
+class AgentBeatsBenchmarkRequest(BaseModel):
+    """
+    Request to run HE-300 benchmark against a purple agent.
+
+    This is the main AgentBeats integration endpoint supporting:
+    - Parallel execution (10, 50, or 100 concurrent calls)
+    - A2A and MCP protocols
+    - Semantic LLM evaluation for mis-formatted responses
+    - SSL/TLS with custom certificates
+    """
+    agent_url: str = Field(..., description="Purple agent A2A/MCP endpoint URL")
+    agent_name: str = Field(default="", description="Agent name for leaderboard")
+    model: str = Field(default="unknown", description="Model identifier")
+    protocol: str = Field(default="a2a", description="Protocol: 'a2a' or 'mcp'")
+
+    # Parallelization settings
+    concurrency: int = Field(
+        default=50,
+        ge=1,
+        le=100,
+        description="Parallel calls (10=conservative, 50=default, 100=aggressive)"
+    )
+
+    # Sampling settings
+    sample_size: int = Field(
+        default=300,
+        ge=1,
+        le=300,
+        description="Number of scenarios to evaluate (max 300)"
+    )
+    categories: Optional[List[str]] = Field(
+        default=None,
+        description="Categories to include (default: all)"
+    )
+    random_seed: Optional[int] = Field(
+        default=None,
+        description="Random seed for reproducible sampling"
+    )
+
+    # Evaluation settings
+    semantic_evaluation: bool = Field(
+        default=True,
+        description="Use LLM for semantic classification of responses"
+    )
+    timeout_per_scenario: float = Field(
+        default=60.0,
+        ge=5.0,
+        le=300.0,
+        description="Timeout in seconds per scenario"
+    )
+
+    # Authentication
+    api_key: Optional[str] = Field(
+        default=None,
+        description="API key for purple agent authentication"
+    )
+
+    # SSL/TLS settings
+    verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
+    ca_cert_path: Optional[str] = Field(
+        default=None,
+        description="Path to custom CA certificate"
+    )
+    client_cert_path: Optional[str] = Field(
+        default=None,
+        description="Path to client certificate for mTLS"
+    )
+    client_key_path: Optional[str] = Field(
+        default=None,
+        description="Path to client key for mTLS"
+    )
+
+
+class AgentBeatsBenchmarkResponse(BaseModel):
+    """Response from AgentBeats benchmark run."""
+    batch_id: str
+    agent_name: str
+    model: str
+
+    # Results
+    accuracy: float
+    total_scenarios: int
+    correct: int
+    errors: int
+
+    # Per-category breakdown
+    categories: Dict[str, Dict[str, Any]]
+
+    # Performance
+    avg_latency_ms: float
+    processing_time_ms: float
+    concurrency_used: int
+
+    # Metadata
+    protocol: str
+    semantic_evaluation: bool
+    random_seed: Optional[int]
+
+
+@router.post("/agentbeats/run", response_model=AgentBeatsBenchmarkResponse)
+async def run_agentbeats_benchmark(
+    request: AgentBeatsBenchmarkRequest = Body(...),
+):
+    """
+    Run HE-300 benchmark against a purple agent with parallel execution.
+
+    **AgentBeats Integration Endpoint**
+
+    This endpoint is optimized for AgentBeats platform integration:
+    - Parallel execution with configurable concurrency (10, 50, 100)
+    - Direct A2A/MCP calls to purple agents (no ReasoningAgent overhead)
+    - Semantic LLM evaluation handles mis-formatted responses
+    - SSL/TLS support with custom certificates and mTLS
+    - Deterministic sampling for reproducible benchmarks
+
+    **Concurrency Levels:**
+    - 10: Conservative - for rate-limited agents
+    - 50: Default - balanced throughput
+    - 100: Aggressive - for high-capacity agents
+
+    **Example Request:**
+    ```json
+    {
+        "agent_url": "https://my-agent.example.com/a2a",
+        "agent_name": "My Agent",
+        "model": "gpt-4o",
+        "concurrency": 50,
+        "sample_size": 300,
+        "semantic_evaluation": true
+    }
+    ```
+    """
+    import uuid
+
+    if not HAS_PARALLEL_RUNNER:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Parallel runner not available. Install required dependencies."
+        )
+
+    batch_id = f"agentbeats-{uuid.uuid4().hex[:8]}"
+    seed = request.random_seed if request.random_seed is not None else random.randint(0, 2**32 - 1)
+
+    logger.info(
+        f"Starting AgentBeats benchmark {batch_id}: "
+        f"agent={request.agent_url}, concurrency={request.concurrency}, "
+        f"sample_size={request.sample_size}, seed={seed}"
+    )
+
+    # Load and sample scenarios
+    all_scenarios = get_all_scenarios()
+
+    # Convert to format expected by sampler
+    scenarios_by_category = {}
+    for cat, scenarios in all_scenarios.items():
+        cat_key = cat.value if isinstance(cat, HE300Category) else str(cat)
+        # Filter by requested categories if specified
+        if request.categories is None or cat_key in request.categories:
+            scenarios_by_category[cat_key] = scenarios
+
+    # Perform deterministic sampling
+    sampled_scenarios, scenario_ids = sample_scenarios_deterministic(
+        all_scenarios=scenarios_by_category,
+        seed=seed,
+        sample_size=request.sample_size,
+        per_category=request.sample_size // max(len(scenarios_by_category), 1),
+    )
+
+    if len(sampled_scenarios) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No scenarios available for the requested categories"
+        )
+
+    # Convert to ScenarioInput format
+    scenario_inputs = []
+    for scenario in sampled_scenarios:
+        if isinstance(scenario, HE300ScenarioInfo):
+            scenario_inputs.append(ScenarioInput(
+                scenario_id=scenario.scenario_id,
+                category=scenario.category.value if hasattr(scenario.category, 'value') else str(scenario.category),
+                input_text=scenario.input_text,
+                expected_label=scenario.expected_label,
+            ))
+        elif isinstance(scenario, dict):
+            scenario_inputs.append(ScenarioInput(
+                scenario_id=scenario.get('scenario_id', f'unknown-{len(scenario_inputs)}'),
+                category=scenario.get('category', 'unknown'),
+                input_text=scenario.get('input_text', ''),
+                expected_label=scenario.get('expected_label', 0),
+            ))
+
+    # Build batch config
+    batch_config = BatchConfig(
+        batch_id=batch_id,
+        concurrency=request.concurrency,
+        agent_config={
+            "url": request.agent_url,
+            "protocol": request.protocol,
+            "api_key": request.api_key,
+            "verify_ssl": request.verify_ssl,
+            "ca_cert_path": request.ca_cert_path,
+            "client_cert_path": request.client_cert_path,
+            "client_key_path": request.client_key_path,
+        },
+        timeout_per_scenario=request.timeout_per_scenario,
+        semantic_evaluation=request.semantic_evaluation,
+    )
+
+    # Run the benchmark
+    try:
+        result = await run_batch(scenario_inputs, batch_config)
+    except Exception as e:
+        logger.error(f"Benchmark failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Benchmark execution failed: {e}"
+        )
+
+    # Store trace for CIRIS validation
+    store_trace(batch_id, {
+        "batch_id": batch_id,
+        "agent_name": request.agent_name,
+        "model": request.model,
+        "agent_url": request.agent_url,
+        "protocol": request.protocol,
+        "concurrency": request.concurrency,
+        "sample_size": request.sample_size,
+        "random_seed": seed,
+        "accuracy": result.accuracy,
+        "total": result.total,
+        "correct": result.correct,
+        "errors": result.errors,
+        "categories": result.categories,
+        "results": result.results,
+        "processing_time_ms": result.processing_time_ms,
+        "semantic_evaluation": request.semantic_evaluation,
+    })
+
+    logger.info(
+        f"Completed AgentBeats benchmark {batch_id}: "
+        f"{result.correct}/{result.total} correct ({result.accuracy:.2%}), "
+        f"{result.errors} errors, {result.processing_time_ms:.1f}ms"
+    )
+
+    return AgentBeatsBenchmarkResponse(
+        batch_id=batch_id,
+        agent_name=request.agent_name,
+        model=request.model,
+        accuracy=result.accuracy,
+        total_scenarios=result.total,
+        correct=result.correct,
+        errors=result.errors,
+        categories=result.categories,
+        avg_latency_ms=result.avg_latency_ms,
+        processing_time_ms=result.processing_time_ms,
+        concurrency_used=request.concurrency,
+        protocol=request.protocol,
+        semantic_evaluation=request.semantic_evaluation,
+        random_seed=seed,
+    )
+
+
+@router.get("/agentbeats/status")
+async def agentbeats_status():
+    """
+    Get AgentBeats integration status.
+
+    Returns availability of parallel runner and supported features.
+    """
+    return {
+        "parallel_runner_available": HAS_PARALLEL_RUNNER,
+        "supported_protocols": ["a2a", "mcp"],
+        "concurrency_levels": {
+            "conservative": 10,
+            "default": 50,
+            "aggressive": 100,
+        },
+        "features": {
+            "semantic_evaluation": True,
+            "mtls_support": True,
+            "custom_ca_support": True,
+            "deterministic_sampling": True,
+        },
+        "max_sample_size": 300,
+    }

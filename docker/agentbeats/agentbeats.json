@@ -19,7 +19,8 @@
             "type": "object",
             "properties": {
               "agent_url": { "type": "string", "description": "Agent endpoint URL" },
-              "sample_size": { "type": "integer", "default": 50 },
+              "sample_size": { "type": "integer", "default": 300 },
+              "concurrency": { "type": "integer", "default": 50, "enum": [10, 50, 100] },
               "categories": { "type": "array", "items": { "type": "string" } }
             },
             "required": ["agent_url"]
@@ -61,6 +62,29 @@
         "trace-validation",
         "result-streaming"
       ]
+    },
+    "benchmark": {
+      "enabled": true,
+      "endpoint": "/he300/agentbeats/run",
+      "parallelization": {
+        "supported": true,
+        "levels": {
+          "conservative": 10,
+          "default": 50,
+          "aggressive": 100
+        },
+        "description": "Concurrent calls to purple agent during evaluation"
+      },
+      "protocols": ["a2a", "mcp"],
+      "semantic_evaluation": {
+        "enabled": true,
+        "description": "LLM-based classification for mis-formatted responses"
+      },
+      "ssl_tls": {
+        "verify_default": true,
+        "custom_ca_supported": true,
+        "mtls_supported": true
+      }
     }
   },
 
@@ -102,7 +126,9 @@
       "health": "/health",
       "he300": "/he300",
       "batch": "/he300/batch",
-      "catalog": "/he300/catalog"
+      "catalog": "/he300/catalog",
+      "agentbeats_run": "/he300/agentbeats/run",
+      "agentbeats_status": "/he300/agentbeats/status"
     }
   },
 
@@ -147,12 +173,29 @@
       },
       {
         "name": "OLLAMA_BASE_URL",
-        "description": "Ollama LLM server URL",
+        "description": "Ollama LLM server URL (for local inference)",
         "default": "http://ollama:11434"
       },
       {
+        "name": "OPENAI_API_KEY",
+        "description": "OpenAI API key for evaluation (alternative to Ollama)",
+        "required": false,
+        "secret": true
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "description": "Anthropic API key for evaluation (alternative to Ollama)",
+        "required": false,
+        "secret": true
+      },
+      {
+        "name": "LLM_PROVIDER",
+        "description": "LLM provider: ollama, openai, or anthropic",
+        "default": "ollama"
+      },
+      {
         "name": "LLM_MODEL",
-        "description": "Default LLM model for benchmarks",
+        "description": "Model for semantic evaluation (e.g., llama3.2, gpt-4o-mini, claude-3-haiku)",
         "default": "llama3.2"
       },
       {
