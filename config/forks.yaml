@@ -1,0 +1,202 @@
+# =============================================================================
+# Fork & Branch Configuration
+# =============================================================================
+#
+# Defines repository forks, branches, and synchronization settings for CI/CD.
+# Used by submodule management and deployment scripts.
+
+version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Repository Definitions
+# -----------------------------------------------------------------------------
+repositories:
+  # -------------------------------------------------------------------------
+  # CIRISNode
+  # -------------------------------------------------------------------------
+  cirisnode:
+    name: "CIRISNode"
+    description: "CIRIS-aligned ethical AI node with benchmark API"
+    
+    # Upstream (original) repository
+    upstream:
+      owner: CIRISAI
+      repo: CIRISNode
+      url: https://github.com/CIRISAI/CIRISNode
+      default_branch: main
+      
+    # Development fork
+    fork:
+      owner: rng-ops
+      repo: CIRISNode
+      url: https://github.com/rng-ops/CIRISNode
+      
+    # Branch configuration
+    branches:
+      development: feature/eee-integration
+      staging: staging
+      production: main
+      
+    # Submodule path (relative to staging/)
+    submodule_path: submodules/cirisnode
+    
+    # Docker configuration
+    docker:
+      image_name: cirisnode
+      dockerfile: Dockerfile
+      context: .
+      
+    # Dependencies
+    dependencies:
+      python: ">=3.11"
+      packages:
+        - requirements.txt
+
+  # -------------------------------------------------------------------------
+  # EthicsEngine Enterprise
+  # -------------------------------------------------------------------------
+  ethicsengine:
+    name: "EthicsEngine Enterprise"
+    description: "Enterprise ethical AI pipeline engine"
+    
+    # Upstream (original) repository
+    upstream:
+      owner: emooreatx
+      repo: ethicsengine_enterprise
+      url: https://github.com/emooreatx/ethicsengine_enterprise
+      default_branch: main
+      
+    # Development fork
+    fork:
+      owner: rng-ops
+      repo: ethicsengine_enterprise
+      url: https://github.com/rng-ops/ethicsengine_enterprise
+      
+    # Branch configuration
+    branches:
+      development: feature/he300-api
+      staging: staging
+      production: main
+      
+    # Submodule path (relative to staging/)
+    submodule_path: submodules/ethicsengine
+    
+    # Docker configuration
+    docker:
+      image_name: ethicsengine-enterprise
+      dockerfile: Dockerfile
+      context: .
+      
+    # Dependencies
+    dependencies:
+      python: ">=3.11"
+      packages:
+        - requirements.txt
+
+# -----------------------------------------------------------------------------
+# Environment Branch Mappings
+# -----------------------------------------------------------------------------
+environments:
+  development:
+    cirisnode_branch: feature/eee-integration
+    ethicsengine_branch: feature/he300-api
+    use_fork: true
+    auto_sync: false
+    
+  staging:
+    cirisnode_branch: staging
+    ethicsengine_branch: staging
+    use_fork: true
+    auto_sync: true
+    sync_schedule: "0 */6 * * *"  # Every 6 hours
+    
+  production:
+    cirisnode_branch: main
+    ethicsengine_branch: main
+    use_fork: false  # Use upstream directly
+    auto_sync: false
+    require_approval: true
+
+# -----------------------------------------------------------------------------
+# Synchronization Settings
+# -----------------------------------------------------------------------------
+sync:
+  # Strategy for syncing forks with upstream
+  strategy: rebase  # rebase | merge | reset
+  
+  # Auto-create PRs for sync conflicts
+  auto_pr_on_conflict: true
+  
+  # Protected branches (never force push)
+  protected_branches:
+    - main
+    - production
+    
+  # Branches to exclude from sync
+  exclude_branches:
+    - gh-pages
+    - dependabot/*
+    
+  # Git configuration
+  git:
+    user_name: "HE300 CI Bot"
+    user_email: "ci@rng-ops.dev"
+
+# -----------------------------------------------------------------------------
+# CI/CD Branch Rules
+# -----------------------------------------------------------------------------
+ci:
+  # Branches that trigger CI
+  trigger_branches:
+    - main
+    - staging
+    - "feature/*"
+    - "release/*"
+    - "hotfix/*"
+    
+  # Branches that trigger full regression
+  regression_branches:
+    - main
+    - staging
+    - "release/*"
+    
+  # Branches that can deploy
+  deploy_branches:
+    staging:
+      - staging
+    production:
+      - main
+      - "release/*"
+
+# -----------------------------------------------------------------------------
+# Version Constraints
+# -----------------------------------------------------------------------------
+version_constraints:
+  # Require compatible versions between repos
+  compatibility_matrix:
+    cirisnode:
+      ">=0.2.0":
+        ethicsengine: ">=1.0.0"
+      ">=0.3.0":
+        ethicsengine: ">=1.1.0"
+        
+  # Pin specific versions for production
+  production_pins:
+    cirisnode: null  # Use latest compatible
+    ethicsengine: null  # Use latest compatible
+
+# -----------------------------------------------------------------------------
+# Remote Definitions
+# -----------------------------------------------------------------------------
+remotes:
+  # Git remote names
+  upstream: upstream
+  fork: origin
+  
+  # SSH vs HTTPS
+  use_ssh: false  # Use HTTPS for CI compatibility
+  
+  # Authentication
+  auth:
+    method: token  # token | ssh | app
+    token_env: GITHUB_TOKEN

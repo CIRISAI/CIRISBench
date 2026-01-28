@@ -1,0 +1,151 @@
+# =============================================================================
+# Test Stack - Docker Compose
+# =============================================================================
+#
+# Isolated test environment with mock LLM and ephemeral databases.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.test.yml up -d
+#   pytest tests/
+#   docker compose -f docker/docker-compose.test.yml down -v
+#
+# =============================================================================
+
+name: he300-test
+
+services:
+  # ---------------------------------------------------------------------------
+  # CIRISNode API (Test)
+  # ---------------------------------------------------------------------------
+  cirisnode:
+    build:
+      context: ${CIRISNODE_PATH:-../submodules/cirisnode}
+      dockerfile: Dockerfile
+    container_name: he300-test-cirisnode
+    ports:
+      - "18000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=warning
+      - DATABASE_URL=postgresql://postgres:password@db:5432/cirisnode_test
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=test-secret
+      # EEE Integration
+      - EEE_ENABLED=true
+      - EEE_BASE_URL=http://eee:8080
+      - EEE_TIMEOUT_SECONDS=30
+      # Test mode
+      - TESTING=true
+      - FF_MOCK_LLM=true
+    depends_on:
+      - db
+      - redis
+      - eee
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - he300-test
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Enterprise (Test)
+  # ---------------------------------------------------------------------------
+  eee:
+    build:
+      context: ${EEE_PATH:-../submodules/ethicsengine}
+      dockerfile: Dockerfile
+    container_name: he300-test-eee
+    ports:
+      - "18080:8080"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=warning
+      - HOST=0.0.0.0
+      - PORT=8080
+      - HE300_ENABLED=true
+      # Test mode
+      - TESTING=true
+      - FF_MOCK_LLM=true
+      - MOCK_LLM_ACCURACY=0.85
+    volumes:
+      - ${EEE_PATH:-../submodules/ethicsengine}/datasets:/app/datasets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - he300-test
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (Test - Ephemeral)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: he300-test-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cirisnode_test
+    tmpfs:
+      - /var/lib/postgresql/data  # Ephemeral storage
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - he300-test
+
+  # ---------------------------------------------------------------------------
+  # Redis (Test - Ephemeral)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: he300-test-redis
+    tmpfs:
+      - /data  # Ephemeral storage
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - he300-test
+
+  # ---------------------------------------------------------------------------
+  # Test Runner
+  # ---------------------------------------------------------------------------
+  test-runner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.test
+    container_name: he300-test-runner
+    environment:
+      - CIRISNODE_URL=http://cirisnode:8000
+      - EEE_URL=http://eee:8080
+      - PYTEST_ADDOPTS=--tb=short -v
+    volumes:
+      - ../tests:/app/tests:ro
+      - ../config:/app/config:ro
+      - test_results:/app/results
+    depends_on:
+      cirisnode:
+        condition: service_healthy
+      eee:
+        condition: service_healthy
+    networks:
+      - he300-test
+    profiles:
+      - runner
+
+volumes:
+  test_results:
+
+networks:
+  he300-test:
+    driver: bridge

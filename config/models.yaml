@@ -1,0 +1,242 @@
+# =============================================================================
+# LLM Model Configuration
+# =============================================================================
+#
+# Defines available LLM models and their configurations for HE-300 benchmarks.
+# Models can be selected via environment variable: LLM_MODEL
+
+version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Default Model
+# -----------------------------------------------------------------------------
+default: ollama/llama3.2
+
+# -----------------------------------------------------------------------------
+# Available Models
+# -----------------------------------------------------------------------------
+models:
+  # -------------------------------------------------------------------------
+  # Ollama Models (Local)
+  # -------------------------------------------------------------------------
+  ollama/llama3.2:
+    provider: ollama
+    model_id: llama3.2
+    display_name: "Llama 3.2 (Ollama)"
+    description: "Meta's Llama 3.2 running locally via Ollama"
+    context_window: 8192
+    timeout_seconds: 60
+    max_tokens: 4096
+    temperature: 0.1
+    environments:
+      - development
+      - staging
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 1.0
+      recommended_batch_size: 50
+      
+  ollama/llama3.2:3b:
+    provider: ollama
+    model_id: llama3.2:3b
+    display_name: "Llama 3.2 3B (Ollama)"
+    description: "Smaller Llama 3.2 variant for faster testing"
+    context_window: 8192
+    timeout_seconds: 30
+    max_tokens: 2048
+    temperature: 0.1
+    environments:
+      - development
+      - staging
+    benchmark_config:
+      batch_timeout_multiplier: 0.5
+      recommended_batch_size: 50
+      
+  ollama/mistral:
+    provider: ollama
+    model_id: mistral
+    display_name: "Mistral 7B (Ollama)"
+    description: "Mistral AI's 7B model via Ollama"
+    context_window: 8192
+    timeout_seconds: 45
+    max_tokens: 4096
+    temperature: 0.1
+    environments:
+      - development
+      - staging
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 0.8
+      recommended_batch_size: 50
+      
+  ollama/phi3:
+    provider: ollama
+    model_id: phi3
+    display_name: "Phi-3 (Ollama)"
+    description: "Microsoft's Phi-3 model via Ollama"
+    context_window: 4096
+    timeout_seconds: 30
+    max_tokens: 2048
+    temperature: 0.1
+    environments:
+      - development
+      - staging
+    benchmark_config:
+      batch_timeout_multiplier: 0.6
+      recommended_batch_size: 50
+
+  # -------------------------------------------------------------------------
+  # OpenAI Models (Cloud)
+  # -------------------------------------------------------------------------
+  openai/gpt-4o-mini:
+    provider: openai
+    model_id: gpt-4o-mini
+    display_name: "GPT-4o Mini (OpenAI)"
+    description: "OpenAI's cost-effective GPT-4o variant"
+    context_window: 128000
+    timeout_seconds: 30
+    max_tokens: 4096
+    temperature: 0.1
+    api_key_env: OPENAI_API_KEY
+    environments:
+      - staging
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 0.5
+      recommended_batch_size: 50
+      rate_limit_rpm: 500
+      
+  openai/gpt-4o:
+    provider: openai
+    model_id: gpt-4o
+    display_name: "GPT-4o (OpenAI)"
+    description: "OpenAI's flagship multimodal model"
+    context_window: 128000
+    timeout_seconds: 60
+    max_tokens: 4096
+    temperature: 0.1
+    api_key_env: OPENAI_API_KEY
+    environments:
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 1.0
+      recommended_batch_size: 25
+      rate_limit_rpm: 100
+
+  # -------------------------------------------------------------------------
+  # Anthropic Models (Cloud)
+  # -------------------------------------------------------------------------
+  anthropic/claude-3-5-sonnet:
+    provider: anthropic
+    model_id: claude-3-5-sonnet-20241022
+    display_name: "Claude 3.5 Sonnet (Anthropic)"
+    description: "Anthropic's Claude 3.5 Sonnet"
+    context_window: 200000
+    timeout_seconds: 60
+    max_tokens: 4096
+    temperature: 0.1
+    api_key_env: ANTHROPIC_API_KEY
+    environments:
+      - staging
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 1.0
+      recommended_batch_size: 25
+      rate_limit_rpm: 50
+
+  anthropic/claude-3-5-haiku:
+    provider: anthropic
+    model_id: claude-3-5-haiku-20241022
+    display_name: "Claude 3.5 Haiku (Anthropic)"
+    description: "Anthropic's fast Claude 3.5 Haiku"
+    context_window: 200000
+    timeout_seconds: 30
+    max_tokens: 4096
+    temperature: 0.1
+    api_key_env: ANTHROPIC_API_KEY
+    environments:
+      - staging
+      - production
+    benchmark_config:
+      batch_timeout_multiplier: 0.5
+      recommended_batch_size: 50
+      rate_limit_rpm: 100
+
+  # -------------------------------------------------------------------------
+  # Mock Model (Testing)
+  # -------------------------------------------------------------------------
+  mock/deterministic:
+    provider: mock
+    model_id: deterministic
+    display_name: "Mock Deterministic"
+    description: "Deterministic mock model for testing"
+    context_window: 8192
+    timeout_seconds: 1
+    max_tokens: 100
+    temperature: 0.0
+    environments:
+      - development
+      - test
+      - ci
+    benchmark_config:
+      batch_timeout_multiplier: 0.1
+      recommended_batch_size: 100
+      mock_accuracy: 0.85
+      mock_latency_ms: 10
+
+# -----------------------------------------------------------------------------
+# Provider Configurations
+# -----------------------------------------------------------------------------
+providers:
+  ollama:
+    base_url_env: OLLAMA_BASE_URL
+    default_base_url: http://ollama:11434
+    health_endpoint: /api/tags
+    
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    organization_env: OPENAI_ORG_ID
+    
+  anthropic:
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    
+  mock:
+    description: "Local mock provider for testing"
+    deterministic: true
+
+# -----------------------------------------------------------------------------
+# Model Selection Rules
+# -----------------------------------------------------------------------------
+selection_rules:
+  # CI/CD environments always use mock
+  ci:
+    force_model: mock/deterministic
+    
+  # Test environments prefer mock
+  test:
+    force_model: mock/deterministic
+    
+  # Development allows any available model
+  development:
+    allowed_providers:
+      - ollama
+      - mock
+      
+  # Staging allows cloud providers
+  staging:
+    allowed_providers:
+      - ollama
+      - openai
+      - anthropic
+      - mock
+      
+  # Production restricts to verified models
+  production:
+    allowed_providers:
+      - ollama
+      - openai
+      - anthropic
+    blocked_models:
+      - mock/deterministic

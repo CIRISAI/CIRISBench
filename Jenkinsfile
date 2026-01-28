@@ -1,0 +1,223 @@
+# =============================================================================
+# Jenkinsfile - Multi-Pipeline CI/CD for HE-300 Stack
+# =============================================================================
+#
+# This Jenkinsfile provides CI/CD support for Jenkins users.
+# Compatible with Jenkins 2.x with Pipeline plugin.
+#
+# Required Jenkins plugins:
+#   - Pipeline
+#   - Docker Pipeline
+#   - Git
+#   - Credentials
+#
+# =============================================================================
+
+pipeline {
+    agent any
+    
+    options {
+        timeout(time: 2, unit: 'HOURS')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+    }
+    
+    environment {
+        // Docker Registry
+        DOCKER_REGISTRY = credentials('docker-registry-url')
+        DOCKER_ORG = 'rng-ops'
+        
+        // Git
+        GIT_HASH = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        
+        // Python
+        PYTHON_VERSION = '3.12'
+    }
+    
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['staging', 'production'],
+            description: 'Target deployment environment'
+        )
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'Docker image tag (defaults to VERSION file)'
+        )
+        booleanParam(
+            name: 'RUN_BENCHMARKS',
+            defaultValue: false,
+            description: 'Run HE-300 benchmarks after deployment'
+        )
+        choice(
+            name: 'BENCHMARK_SIZE',
+            choices: ['30', '100', '300'],
+            description: 'Number of scenarios to run'
+        )
+        string(
+            name: 'CIRISNODE_BRANCH',
+            defaultValue: 'feature/eee-integration',
+            description: 'CIRISNode branch to build'
+        )
+        string(
+            name: 'EEE_BRANCH',
+            defaultValue: 'feature/he300-api',
+            description: 'EthicsEngine branch to build'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                
+                script {
+                    // Read version
+                    env.VERSION = readFile('VERSION').trim()
+                    env.IMAGE_TAG = params.IMAGE_TAG ?: env.VERSION
+                }
+                
+                echo "Building version: ${env.VERSION}"
+            }
+        }
+        
+        stage('Setup Submodules') {
+            steps {
+                sh '''
+                    chmod +x scripts/*.sh
+                    ./scripts/setup-submodules.sh \
+                        --cirisnode-branch ${CIRISNODE_BRANCH} \
+                        --eee-branch ${EEE_BRANCH}
+                '''
+            }
+        }
+        
+        stage('Test') {
+            parallel {
+                stage('CIRISNode Tests') {
+                    steps {
+                        dir('submodules/cirisnode') {
+                            sh '''
+                                python -m venv .venv
+                                . .venv/bin/activate
+                                pip install -r requirements.txt
+                                pip install pytest pytest-asyncio pytest-cov
+                                
+                                export EEE_ENABLED=false
+                                export JWT_SECRET=test-secret
+                                
+                                pytest tests/ -v --junitxml=test-results-cirisnode.xml
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            junit 'submodules/cirisnode/test-results-cirisnode.xml'
+                        }
+                    }
+                }
+                
+                stage('EthicsEngine Tests') {
+                    steps {
+                        dir('submodules/ethicsengine') {
+                            sh '''
+                                python -m venv .venv
+                                . .venv/bin/activate
+                                pip install -r requirements.txt
+                                pip install pytest pytest-asyncio pytest-cov
+                                
+                                export FF_MOCK_LLM=true
+                                
+                                pytest tests/ -v --junitxml=test-results-eee.xml
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            junit 'submodules/ethicsengine/test-results-eee.xml'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build Images') {
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        sh "./scripts/build-images.sh all --tag ${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'release/*'
+                    expression { params.ENVIRONMENT == 'production' }
+                }
+            }
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        sh "./scripts/build-images.sh push --tag ${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' }
+            }
+            steps {
+                sh "./scripts/deploy.sh staging --tag ${IMAGE_TAG}"
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                expression { params.ENVIRONMENT == 'production' }
+            }
+            steps {
+                input message: 'Deploy to production?', ok: 'Deploy'
+                sh "./scripts/deploy.sh production --tag ${IMAGE_TAG}"
+            }
+        }
+        
+        stage('Run Benchmarks') {
+            when {
+                expression { params.RUN_BENCHMARKS }
+            }
+            steps {
+                sh """
+                    ./scripts/run-benchmark.sh \
+                        --sample-size ${BENCHMARK_SIZE} \
+                        --output results/benchmark-${BUILD_NUMBER}.json
+                """
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'results/*.json', allowEmptyArchive: true
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
+            // Add notification (Slack, email, etc.)
+        }
+    }
+}

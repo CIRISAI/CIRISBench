@@ -1,0 +1,150 @@
+# =============================================================================
+# Feature Flags Configuration
+# =============================================================================
+# 
+# Feature flags control optional functionality across the HE-300 integration.
+# These can be overridden via environment variables (prefix: FF_)
+#
+# Usage in code:
+#   from staging.config import feature_flags
+#   if feature_flags.get('EEE_ENABLED'):
+#       ...
+
+version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Core Feature Flags
+# -----------------------------------------------------------------------------
+flags:
+  # EthicsEngine Enterprise Integration
+  EEE_ENABLED:
+    description: "Enable EthicsEngine Enterprise integration"
+    default: false
+    environments:
+      development: true
+      staging: true
+      production: true
+    
+  # HE-300 Benchmark
+  HE300_ENABLED:
+    description: "Enable HE-300 benchmark endpoints"
+    default: false
+    environments:
+      development: true
+      staging: true
+      production: true
+      
+  # Mock LLM (for testing without real LLM)
+  MOCK_LLM:
+    description: "Use mock LLM responses for testing"
+    default: false
+    environments:
+      development: false
+      staging: false
+      production: false
+      test: true
+      ci: true
+
+# -----------------------------------------------------------------------------
+# Security Flags
+# -----------------------------------------------------------------------------
+  SIGNATURE_VERIFICATION:
+    description: "Verify Ed25519 signatures on benchmark results"
+    default: true
+    environments:
+      development: false
+      staging: true
+      production: true
+      
+  JWT_REQUIRED:
+    description: "Require JWT authentication for API endpoints"
+    default: true
+    environments:
+      development: false
+      staging: true
+      production: true
+
+# -----------------------------------------------------------------------------
+# Performance Flags
+# -----------------------------------------------------------------------------
+  RESULT_CACHING:
+    description: "Enable caching of benchmark results"
+    default: true
+    environments:
+      development: true
+      staging: true
+      production: true
+      
+  ASYNC_PROCESSING:
+    description: "Use async/Celery for benchmark processing"
+    default: true
+    environments:
+      development: true
+      staging: true
+      production: true
+
+# -----------------------------------------------------------------------------
+# Debug Flags
+# -----------------------------------------------------------------------------
+  DEBUG_MODE:
+    description: "Enable debug logging and endpoints"
+    default: false
+    environments:
+      development: true
+      staging: false
+      production: false
+      
+  DETAILED_LOGGING:
+    description: "Enable detailed request/response logging"
+    default: false
+    environments:
+      development: true
+      staging: false
+      production: false
+      
+  TRACE_REQUESTS:
+    description: "Enable request tracing (OpenTelemetry)"
+    default: false
+    environments:
+      development: false
+      staging: true
+      production: true
+
+# -----------------------------------------------------------------------------
+# Experimental Flags
+# -----------------------------------------------------------------------------
+  EXPERIMENTAL_BATCH_STREAMING:
+    description: "Stream batch results as they complete"
+    default: false
+    environments:
+      development: true
+      staging: false
+      production: false
+      
+  EXPERIMENTAL_MULTI_MODEL:
+    description: "Allow multiple models in single benchmark"
+    default: false
+    environments:
+      development: true
+      staging: false
+      production: false
+
+# -----------------------------------------------------------------------------
+# Rollout Configuration
+# -----------------------------------------------------------------------------
+rollout:
+  # Percentage rollout for gradual feature releases
+  strategies:
+    full:
+      percentage: 100
+    canary:
+      percentage: 5
+    beta:
+      percentage: 25
+    
+  # Feature-specific rollouts
+  feature_rollouts:
+    EXPERIMENTAL_BATCH_STREAMING:
+      strategy: canary
+    EXPERIMENTAL_MULTI_MODEL:
+      strategy: beta

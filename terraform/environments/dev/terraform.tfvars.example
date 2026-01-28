@@ -1,0 +1,24 @@
+# Development environment example configuration
+
+# Deployment target
+deploy_path = "/opt/he300"
+target_host = "localhost"
+auto_deploy = false
+
+# GPU settings (set to false for CPU-only or macOS)
+enable_gpu           = true
+cuda_visible_devices = "0"
+
+# Model configuration
+default_model      = "Qwen/Qwen2.5-7B-Instruct"
+model_quantization = "Q4_K_M"
+
+# Data paths
+data_dir = "/var/lib/he300"
+log_dir  = "/var/log/he300"
+
+# Secrets - leave empty to auto-generate
+# db_password    = ""
+# redis_password = ""
+# jwt_secret     = ""
+# webhook_secret = ""

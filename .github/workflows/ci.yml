@@ -1,0 +1,43 @@
+# =============================================================================
+# CI Pipeline - GitHub Actions
+# =============================================================================
+#
+# Validates infrastructure configuration on every push.
+#
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, staging, 'feature/**']
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Validate YAML configs
+        run: |
+          pip install pyyaml
+          python -c "
+          import yaml
+          from pathlib import Path
+          for f in Path('config').rglob('*.yaml'):
+              yaml.safe_load(f.read_text())
+              print(f'✅ {f}')
+          "
+          
+      - name: Run infrastructure tests
+        run: |
+          pip install pytest pyyaml
+          pytest tests/test_infrastructure.py -v --tb=short

@@ -1,0 +1,170 @@
+# =============================================================================
+# Submodule Sync - GitHub Actions
+# =============================================================================
+#
+# Keeps submodules synchronized with their upstream/fork branches.
+# Runs on schedule and can be triggered manually.
+#
+# =============================================================================
+
+name: Submodule Sync
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      cirisnode_branch:
+        description: 'CIRISNode branch to sync'
+        required: false
+        default: 'feature/eee-integration'
+      eee_branch:
+        description: 'EEE branch to sync'
+        required: false
+        default: 'feature/he300-api'
+      force:
+        description: 'Force reset to remote (destructive)'
+        type: boolean
+        default: false
+
+env:
+  CIRISNODE_BRANCH: ${{ github.event.inputs.cirisnode_branch || 'feature/eee-integration' }}
+  EEE_BRANCH: ${{ github.event.inputs.eee_branch || 'feature/he300-api' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Sync CIRISNode Submodule
+  # ---------------------------------------------------------------------------
+  sync-cirisnode:
+    name: Sync CIRISNode
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Configure Git
+        run: |
+          git config user.name "Submodule Sync Bot"
+          git config user.email "sync@he300.local"
+          
+      - name: Update CIRISNode submodule
+        run: |
+          cd submodules/cirisnode
+          
+          # Fetch all remotes
+          git fetch origin
+          git fetch upstream 2>/dev/null || git remote add upstream https://github.com/CIRISAI/CIRISNode.git && git fetch upstream
+          
+          # Checkout target branch
+          git checkout ${{ env.CIRISNODE_BRANCH }} 2>/dev/null || git checkout -b ${{ env.CIRISNODE_BRANCH }} origin/${{ env.CIRISNODE_BRANCH }}
+          
+          # Pull latest
+          git pull origin ${{ env.CIRISNODE_BRANCH }} --rebase || true
+          
+          # Check if we're behind upstream
+          BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
+          echo "CIRISNode is $BEHIND commits behind upstream/main"
+          
+      - name: Commit submodule update
+        run: |
+          git add submodules/cirisnode
+          git diff --staged --quiet || git commit -m "chore: Update CIRISNode submodule to ${{ env.CIRISNODE_BRANCH }}"
+          
+      - name: Push changes
+        run: |
+          git push origin HEAD || true
+
+  # ---------------------------------------------------------------------------
+  # Sync EthicsEngine Submodule
+  # ---------------------------------------------------------------------------
+  sync-eee:
+    name: Sync EthicsEngine
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Configure Git
+        run: |
+          git config user.name "Submodule Sync Bot"
+          git config user.email "sync@he300.local"
+          
+      - name: Update EEE submodule
+        run: |
+          cd submodules/ethicsengine
+          
+          # Fetch all remotes
+          git fetch origin
+          git fetch upstream 2>/dev/null || git remote add upstream https://github.com/emooreatx/ethicsengine_enterprise.git && git fetch upstream
+          
+          # Checkout target branch
+          git checkout ${{ env.EEE_BRANCH }} 2>/dev/null || git checkout -b ${{ env.EEE_BRANCH }} origin/${{ env.EEE_BRANCH }}
+          
+          # Pull latest
+          git pull origin ${{ env.EEE_BRANCH }} --rebase || true
+          
+          # Check if we're behind upstream
+          BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
+          echo "EEE is $BEHIND commits behind upstream/main"
+          
+      - name: Commit submodule update
+        run: |
+          git add submodules/ethicsengine
+          git diff --staged --quiet || git commit -m "chore: Update EthicsEngine submodule to ${{ env.EEE_BRANCH }}"
+          
+      - name: Push changes
+        run: |
+          git push origin HEAD || true
+
+  # ---------------------------------------------------------------------------
+  # Verify Sync
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Verify Sync
+    runs-on: ubuntu-latest
+    needs: [sync-cirisnode, sync-eee]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - name: Verify submodules
+        run: |
+          echo "=== Submodule Status ==="
+          git submodule status
+          
+          echo ""
+          echo "=== CIRISNode ==="
+          cd submodules/cirisnode
+          git log --oneline -5
+          
+          echo ""
+          echo "=== EthicsEngine ==="
+          cd ../ethicsengine
+          git log --oneline -5
+          
+      - name: Check for conflicts
+        run: |
+          # Verify submodules are on expected branches
+          cd submodules/cirisnode
+          CURRENT=$(git branch --show-current)
+          if [ "$CURRENT" != "${{ env.CIRISNODE_BRANCH }}" ]; then
+            echo "::warning::CIRISNode not on expected branch. Current: $CURRENT, Expected: ${{ env.CIRISNODE_BRANCH }}"
+          fi
+          
+          cd ../ethicsengine
+          CURRENT=$(git branch --show-current)
+          if [ "$CURRENT" != "${{ env.EEE_BRANCH }}" ]; then
+            echo "::warning::EEE not on expected branch. Current: $CURRENT, Expected: ${{ env.EEE_BRANCH }}"
+          fi

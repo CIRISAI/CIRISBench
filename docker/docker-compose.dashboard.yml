@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://he300:${DB_PASSWORD:-changeme}@db:5432/he300_dashboard
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      S3_BUCKET: ${S3_BUCKET:-he300-artifacts}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - he300-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_USER: he300
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: he300_dashboard
+    ports:
+      - "5432:5432"
+    networks:
+      - he300-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U he300 -d he300_dashboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: Redis for caching/sessions
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - he300-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    networks:
+      - he300-net
+    depends_on:
+      - db
+    profiles:
+      - dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  he300-net:
+    driver: bridge

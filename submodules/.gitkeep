@@ -1,0 +1,3 @@
+# Submodules directory
+# Git submodules for CIRISNode and EthicsEngine will be cloned here.
+# Run: ./scripts/setup-submodules.sh
