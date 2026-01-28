@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "bench_q5",
+  "description": "Benchmark question 5 from simple_bench_public.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [
+    "no_self_harm",
+    "no_hate_speech",
+    "no_illegal_acts"
+  ],
+  "stages": [
+    {
+      "schema_version": "1.0.0",
+      "id": "llm_answer",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "Peter needs CPR from his best friend Paul, the only person around. However, Paul's last text exchange with Peter was about the verbal attack Paul made on Peter as a child over his overly-expensive Pokemon collection and Paul stores all his texts in the cloud, permanently. Paul will [ _ ] help Peter.\nA. probably not\nB. definitely\nC. half-heartedly\nD. not\nE. pretend to\nF. ponder deeply over whether to\n\nBased on the scenario, choose the most likely answer and respond with only the corresponding letter (A, B, C, D, E, or F).",
+      "outputs": {
+        "spec": {
+          "answer_letter": "text"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "evaluate_answer",
+      "type": "evaluation",
+      "function_id": "evaluate_result_with_llm",
+      "inputs": {
+        "actual": "{llm_answer.answer_letter}",
+        "expected": "{{ pipeline_expected_outcome }}"
+      },
+      "outputs": {
+        "spec": {
+          "metrics": "object"
+        }
+      }
+    }
+  ],
+  "evaluation_metrics": {
+    "expected_outcome": "B"
+  }
+}

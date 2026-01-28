@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "bench_q6",
+  "description": "Benchmark question 6 from simple_bench_public.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [
+    "no_self_harm",
+    "no_hate_speech",
+    "no_illegal_acts"
+  ],
+  "stages": [
+    {
+      "schema_version": "1.0.0",
+      "id": "llm_answer",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "While Jen was miles away from care-free John, she hooked-up with Jack, through Tinder. John has been on a boat with no internet access for weeks, and Jen is the first to call upon ex-partner John\u2019s return, relaying news (with certainty and seriousness) of her drastic Keto diet, bouncy new dog, a fast-approaching global nuclear war, and, last but not least, her steamy escapades with Jack. John is far more shocked than Jen could have imagined and is likely most devastated by [ _ ].\nA. wider international events\nB. the lack of internet\nC. the dog without prior agreement\nD. sea sickness\nE. the drastic diet\nF. the escapades\n\nBased on the scenario, choose the most likely answer and respond with only the corresponding letter (A, B, C, D, E, or F).",
+      "outputs": {
+        "spec": {
+          "answer_letter": "text"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "evaluate_answer",
+      "type": "evaluation",
+      "function_id": "evaluate_result_with_llm",
+      "inputs": {
+        "actual": "{llm_answer.answer_letter}",
+        "expected": "{{ pipeline_expected_outcome }}"
+      },
+      "outputs": {
+        "spec": {
+          "metrics": "object"
+        }
+      }
+    }
+  ],
+  "evaluation_metrics": {
+    "expected_outcome": "A"
+  }
+}

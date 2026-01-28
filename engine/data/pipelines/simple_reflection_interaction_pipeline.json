@@ -1,0 +1,56 @@
+{
+  "id": "simple_reflection_interaction_pipeline_v2",
+  "description": "A simple pipeline with separate reflections per participant, interaction with specific identities, and summary.",
+  "identity_id": "Neutral", 
+  "ethical_guidance_id": "Neutral", 
+  "stages": [
+    {
+      "id": "nimh_reflection",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "As a representative of the NIMH community (Intelligent Rodents), reflect on the ethical implications of requesting aid for a limited resource from another community. Focus on collective need and survival.",
+      "outputs": {
+        "spec": {
+          "reflection_text": "text"
+        }
+      }
+    },
+    {
+      "id": "jiminy_reflection",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "As a representative of the Jiminy community (Intelligent Birds), reflect on the ethical implications of sharing a limited resource when requested by another community. Focus on duties and fairness.",
+      "outputs": {
+        "spec": {
+          "reflection_text": "text"
+        }
+      }
+    },
+    {
+      "id": "discussion",
+      "type": "interaction",
+      "participants": ["nimh_agent", "jiminy_agent"],
+      "participant_configs": {
+            "nimh_agent": {"identity_id": "NIMHs"},
+            "jiminy_agent": {"identity_id": "Jiminies"}
+      },
+      "prompt": "Discuss the ethical considerations raised in your respective reflections.\n\nNIMH Perspective: {nimh_reflection.reflection_text}\n\nJiminy Perspective: {jiminy_reflection.reflection_text}",
+      "outputs": {
+        "spec": {
+          "discussion_transcript": "text"
+        }
+      }
+    },
+    {
+      "id": "final_summary",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "Summarize the key points and any consensus reached in the following discussion between NIMH and Jiminy agents:\n\n{discussion.discussion_transcript}",
+      "outputs": {
+        "spec": {
+          "summary_text": "text"
+        }
+      }
+    }
+  ]
+}

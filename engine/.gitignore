@@ -1,0 +1,15 @@
+# Log files
+logs/
+*.log
+
+# Results files
+results/
+
+# Python compiled files
+*.pyc
+__pycache__/
+logs/ethics_engine.log
+*.pyc
+data/pipelines/ethics/
+
+data/keys/

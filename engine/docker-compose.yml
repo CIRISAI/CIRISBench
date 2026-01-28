@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  eee-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eee-engine
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=info
+      - HOST=0.0.0.0
+      - PORT=8080
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - eee-network
+
+networks:
+  eee-network:
+    driver: bridge

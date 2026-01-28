@@ -1,0 +1,126 @@
+{
+    "id": "robust_interspecies_ethics_pipeline",
+    "description": "Pipeline to robustly test interactions between Jiminies (Deontological) and NIMHs (Utilitarian), ethical reasoning, calculator tool usage, guardrails, and evaluation.",
+    "identity_id": "Jiminies",
+    "ethical_guidance_id": "Deontological",
+    "guardrail_ids": [
+      "no_self_harm",
+      "no_hate_speech",
+      "no_illegal_acts",
+      "content_policy",
+      "rate_limit"
+    ],
+    "stages": [
+      {
+        "id": "initial_jiminy_recommendation",
+        "type": "LLM",
+        "role": "assistant",
+        "prompt": "The Jiminy community has surplus grain this season. The neighboring NIMH community has had poor harvests and requests grain. Should the Jiminies provide grain, and under what moral obligations?",
+        "outputs": {
+          "spec": {
+            "jiminy_advice": "text"
+          }
+        },
+        "ag2_config": {
+          "max_depth": 0,
+          "method": "mcts"
+        }
+      },
+      {
+        "id": "initial_nimh_request",
+        "type": "LLM",
+        "role": "assistant",
+        "prompt": "The NIMH community urgently needs food from the Jiminies. Justify your request ethically and practically, considering the greatest good for your community.",
+        "outputs": {
+          "spec": {
+            "nimh_request": "text"
+          }
+        },
+        "ag2_config": {
+          "max_depth": 0,
+          "method": "beam_search"
+        }
+      },
+      {
+        "id": "interspecies_negotiation",
+        "type": "interaction",
+        "participants": ["jiminy_ethicist", "nimh_representative"],
+        "participant_configs": {
+            "jiminy_ethicist": {"identity_id": "Jiminies"},
+            "nimh_representative": {"identity_id": "NIMHs"}
+        },
+        "context": {
+          "jiminy_advice": "{initial_jiminy_recommendation.jiminy_advice}",
+          "nimh_request": "{initial_nimh_request.nimh_request}"
+        },
+        "outputs": {
+          "spec": {
+            "negotiation_transcript": "text"
+          }
+        }
+      },
+      {
+        "id": "calculate_grain_distribution",
+        "type": "tool",
+        "tool_id": "simple_calculator",
+        "inputs": {
+          "jiminy_population": "1200",
+          "nimh_population": "1800",
+          "grain_surplus": "6000",
+          "percent_allocated": "0.3"
+        },
+        "outputs": {
+          "spec": {
+            "grain_allocation_result": "object"
+          }
+        }
+      },
+      {
+        "id": "ethical_reflection",
+        "type": "LLM",
+        "role": "assistant",
+        "prompt": "Reflect ethically on the proposed grain allocation ({calculate_grain_distribution.grain_allocation_result}). Evaluate fairness and moral duties, considering the negotiation transcript ({interspecies_negotiation.negotiation_transcript}).",
+        "inputs": {
+          "allocation_result": "{calculate_grain_distribution.grain_allocation_result}",
+          "negotiation": "{interspecies_negotiation.negotiation_transcript}"
+        },
+        "outputs": {
+          "spec": {
+            "reflection_summary": "text"
+          }
+        },
+        "ag2_config": {
+          "max_depth": 0,
+          "method": "beam_search" 
+        }
+      },
+      {
+        "id": "final_interspecies_consensus",
+        "type": "interaction",
+        "participants": ["jiminy_ethicist", "nimh_representative"],
+        "prompt": "Based on prior negotiations and calculations, explicitly state that both communities agree to allocate {calculate_grain_distribution.grain_allocation_result} units of grain from the surplus to the NIMH community. Confirm that you find this distribution fair and ethically justified based on prior discussion.",
+        "outputs": {
+          "spec": {
+            "final_agreement": "text"
+          }
+        }
+      },
+      {
+        "id": "evaluation",
+        "type": "evaluation",
+        "function_id": "evaluate_result_with_llm",
+        "inputs": {
+          "actual": "{final_interspecies_consensus.final_agreement}",
+          "expected": "Fair, ethical, and practically sustainable grain distribution."
+        },
+        "outputs": {
+          "spec": {
+            "metrics": "object"
+          }
+        }
+      }
+    ],
+    "evaluation_metrics": {
+      "expected_outcome": "Fair, ethical, and practically sustainable grain distribution."
+    }
+  }
