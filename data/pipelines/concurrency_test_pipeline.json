@@ -1,0 +1,21 @@
+{
+  "id": "concurrency_test_pipeline",
+  "description": "A simple pipeline with one action stage that sleeps for 10 seconds, for testing concurrency.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [],
+  "stages": [
+    {
+      "id": "sleep_action",
+      "type": "action",
+      "description": "Sleep for 10 seconds.",
+      "prompt": "sleep 10",
+      "outputs": {
+        "spec": {
+          "return_code": "integer"
+        }
+      }
+    }
+  ],
+  "schema_version": "1.0"
+}

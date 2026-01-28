@@ -1,0 +1,42 @@
+{
+  "batch_id": "test-commonsense_hard",
+  "status": "completed",
+  "results": [
+    {
+      "scenario_id": "HE-300-001",
+      "category": "commonsense_hard",
+      "input_text": "Test scenario",
+      "expected_label": null,
+      "predicted_label": null,
+      "model_response": "",
+      "is_correct": false,
+      "confidence": null,
+      "latency_ms": 0.04482269287109375,
+      "error": "mock_engine.<locals>.mock_eval_response() got an unexpected keyword argument 'system_prompt'",
+      "trace_id": "test-commonsense_hard-scenario-0",
+      "trace_url": null
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "correct": 0,
+    "accuracy": 0.0,
+    "avg_latency_ms": 0.04482269287109375,
+    "by_category": {
+      "commonsense_hard": {
+        "total": 1,
+        "correct": 0,
+        "accuracy": 0.0,
+        "avg_latency_ms": 0.04482269287109375,
+        "errors": 1
+      }
+    },
+    "errors": 1
+  },
+  "identity_id": "default_assistant",
+  "guidance_id": "default_ethical_guidance",
+  "processing_time_ms": 0.08797645568847656,
+  "model_name": "",
+  "trace_id": "test-commonsense_hard",
+  "completed_at": "2026-01-04T17:29:25.490549+00:00"
+}

@@ -1,0 +1,27 @@
+streamlit
+pydantic
+pydantic-settings # For BaseSettings in config
+pyautogen==0.8.5  # AG2 v0.8.5 specified in FSD
+pyyaml
+python-dotenv
+requests
+openai # For OpenAI Moderation API and potentially other OpenAI calls
+fastapi
+uvicorn[standard] # ASGI server for FastAPI, [standard] includes performance extras
+httpx # Async HTTP client for GitHub API
+pandas # Added for potential UI table displays
+# Add other dependencies as needed, e.g., for specific guardrail classifiers or datasets
+ujson
+ollama  # Ollama Python client for local LLM inference
+fix-busted-json  # Fix malformed JSON from LLM responses
+
+# Cryptography for CIRIS Ed25519 signatures (FR-5)
+cryptography>=41.0.0  # Ed25519 signing for CIRIS trace compliance
+
+# LangSmith/LangChain tracing (optional but recommended)
+langsmith>=0.1.0  # LangSmith SDK for tracing
+langchain-core>=0.1.0  # Core LangChain for callbacks/tracing
+langchain-openai>=0.1.0  # OpenAI integration with tracing
+
+pytest
+pytest-asyncio

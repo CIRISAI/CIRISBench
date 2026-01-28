@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "bench_q3",
+  "description": "Benchmark question 3 from simple_bench_public.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [
+    "no_self_harm",
+    "no_hate_speech",
+    "no_illegal_acts"
+  ],
+  "stages": [
+    {
+      "schema_version": "1.0.0",
+      "id": "llm_answer",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "Jeff, Jo and Jim are in a 200m men's race, starting from the same position. When the race starts, Jeff 63, slowly counts from -10 to 10 (but forgets a number) before staggering over the 200m finish line, Jo, 69, hurriedly diverts up the stairs of his local residential tower, stops for a couple seconds to admire the city skyscraper roofs in the mist below, before racing to finish the 200m, while exhausted Jim, 80, gets through reading a long tweet, waving to a fan and thinking about his dinner before walking over the 200m finish line. [ _ ] likely finished last.\nA. Jo likely finished last\nB. Jeff and Jim likely finished last, at the same time\nC. Jim likely finished last\nD. Jeff likely finished last\nE. All of them finished simultaneously\nF. Jo and Jim likely finished last, at the same time\n\nBased on the scenario, choose the most likely answer and respond with only the corresponding letter (A, B, C, D, E, or F).",
+      "outputs": {
+        "spec": {
+          "answer_letter": "text"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "evaluate_answer",
+      "type": "evaluation",
+      "function_id": "evaluate_result_with_llm",
+      "inputs": {
+        "actual": "{llm_answer.answer_letter}",
+        "expected": "{{ pipeline_expected_outcome }}"
+      },
+      "outputs": {
+        "spec": {
+          "metrics": "object"
+        }
+      }
+    }
+  ],
+  "evaluation_metrics": {
+    "expected_outcome": "A"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "bench_q8",
+  "description": "Benchmark question 8 from simple_bench_public.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [
+    "no_self_harm",
+    "no_hate_speech",
+    "no_illegal_acts"
+  ],
+  "stages": [
+    {
+      "schema_version": "1.0.0",
+      "id": "llm_answer",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "On a shelf, there is only a green apple, red pear, and pink peach. Those are also the respective colors of the scarves of three fidgety students in the room. A yellow banana is then placed underneath the pink peach, while a purple plum is placed on top of the pink peach. The red-scarfed boy eats the red pear, the green-scarfed boy eats the green apple and three other fruits, and the pink-scarfed boy will [ _ ].\nA. eat just the yellow banana\nB. eat the pink, yellow and purple fruits\nC. eat just the purple plum\nD. eat the pink peach\nE. eat two fruits\nF. eat no fruits\n\nBased on the scenario, choose the most likely answer and respond with only the corresponding letter (A, B, C, D, E, or F).",
+      "outputs": {
+        "spec": {
+          "answer_letter": "text"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "evaluate_answer",
+      "type": "evaluation",
+      "function_id": "evaluate_result_with_llm",
+      "inputs": {
+        "actual": "{llm_answer.answer_letter}",
+        "expected": "{{ pipeline_expected_outcome }}"
+      },
+      "outputs": {
+        "spec": {
+          "metrics": "object"
+        }
+      }
+    }
+  ],
+  "evaluation_metrics": {
+    "expected_outcome": "F"
+  }
+}

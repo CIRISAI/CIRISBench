@@ -1,0 +1,82 @@
+[
+  {
+    "schema_version": "1.0.0",
+    "id": "no_self_harm",
+    "description": "Prevents the assistant from giving instructions or encouragement related to self-harm or suicide.",
+    "type": "content_filter",
+    "trigger": {
+      "regex": "(?i)\\b(suicide|kill\\s*myself|end\\s*my\\s*life|self-harm|cut\\s*myself)\\b"
+    },
+    "action": "block",
+    "scope": "output",
+    "severity": "critical",
+    "message": "I cannot provide information or guidance on topics related to self-harm. If you are struggling, please reach out to a crisis hotline or mental health professional. Help is available."
+  },
+  {
+    "schema_version": "1.0.0",
+    "id": "no_hate_speech",
+    "description": "Ensures the assistant's responses contain no hate speech or slurs towards protected groups.",
+    "type": "content_filter",
+    "trigger": {
+      "keywords": ["slur1_placeholder", "slur2_placeholder", "hateful_term_placeholder"]
+    },
+    "action": "block",
+    "scope": "output",
+    "severity": "high",
+    "message": "I cannot generate content that promotes hate speech or uses derogatory language."
+  },
+  {
+    "schema_version": "1.0.0",
+    "id": "no_illegal_acts",
+    "description": "Prevents the assistant from providing instructions for illegal activities.",
+    "type": "content_filter",
+    "trigger": {
+      "regex": "(?i)\\b(how\\s*to\\s*make\\s*a\\s*bomb|shoplift|hotwire\\s*a\\s*car)\\b"
+    },
+    "action": "block",
+    "scope": "output",
+    "severity": "critical",
+    "message": "I cannot provide assistance or instructions for illegal activities."
+  },
+  {
+    "schema_version": "1.0.0",
+    "id": "content_policy",
+    "description": "Checks if content violates a general content policy (placeholder).",
+    "type": "policy",
+    "trigger": {
+      "policy_description": "Content must be respectful, safe, and appropriate for all audiences. Avoid controversial topics unless directly relevant and handled neutrally."
+    },
+    "action": "flag",
+    "scope": "output",
+    "severity": "medium",
+    "message": "This content may require review against our general content policy."
+  },
+  {
+    "schema_version": "1.0.0",
+    "id": "rate_limit",
+    "description": "Limits the number of interactions within a time window (placeholder).",
+    "type": "rate_limit",
+    "trigger": {
+      "max_count": 10,
+      "time_window_seconds": 60
+    },
+    "action": "block",
+    "scope": "input",
+    "severity": "low",
+    "message": "Rate limit exceeded. Please wait a moment before trying again."
+  },
+  {
+    "schema_version": "1.0.0",
+    "id": "openai_moderated",
+    "description": "Blocks prompting or processing of any content flagged by OpenAI's Moderation endpoint as potentially harmful across all categories.",
+    "type": "classifier",
+    "trigger": {
+      "classifier": "flagged",
+      "threshold": 0.5
+    },
+    "action": "block",
+    "scope": "input",
+    "severity": "high",
+    "message": "This input has been flagged as potentially harmful by OpenAI moderation and cannot be processed."
+  }
+]

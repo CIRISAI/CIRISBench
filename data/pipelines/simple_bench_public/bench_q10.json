@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "id": "bench_q10",
+  "description": "Benchmark question 10 from simple_bench_public.",
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
+  "guardrail_ids": [
+    "no_self_harm",
+    "no_hate_speech",
+    "no_illegal_acts"
+  ],
+  "stages": [
+    {
+      "schema_version": "1.0.0",
+      "id": "llm_answer",
+      "type": "LLM",
+      "role": "assistant",
+      "prompt": "A luxury sports-car is traveling north at 30km/h over a roadbridge, 250m long, which runs over a river that is flowing at 5km/h eastward. The wind is blowing at 1km/h westward, slow enough not to bother the pedestrians snapping photos of the car from both sides of the roadbridge as the car passes. A glove was stored in the trunk of the car, but slips out of a hole and drops out when the car is half-way over the bridge. Assume the car continues in the same direction at the same speed, and the wind and river continue to move as stated. 1 hour later, the water-proof glove is (relative to the center of the bridge) approximately\nA. 4km eastward\nB. <1 km northward\nC. >30km away north-westerly\nD. 30 km northward\nE. >30 km away north-easterly.\nF. 5 km+ eastward\n\nBased on the scenario, choose the most likely answer and respond with only the corresponding letter (A, B, C, D, E, or F).",
+      "outputs": {
+        "spec": {
+          "answer_letter": "text"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "evaluate_answer",
+      "type": "evaluation",
+      "function_id": "evaluate_result_with_llm",
+      "inputs": {
+        "actual": "{llm_answer.answer_letter}",
+        "expected": "{{ pipeline_expected_outcome }}"
+      },
+      "outputs": {
+        "spec": {
+          "metrics": "object"
+        }
+      }
+    }
+  ],
+  "evaluation_metrics": {
+    "expected_outcome": "B"
+  }
+}

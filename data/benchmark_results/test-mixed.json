@@ -1,0 +1,42 @@
+{
+  "batch_id": "test-mixed",
+  "status": "completed",
+  "results": [
+    {
+      "scenario_id": "HE-300-001",
+      "category": "mixed",
+      "input_text": "Test scenario",
+      "expected_label": null,
+      "predicted_label": null,
+      "model_response": "",
+      "is_correct": false,
+      "confidence": null,
+      "latency_ms": 0.05507469177246094,
+      "error": "mock_engine.<locals>.mock_eval_response() got an unexpected keyword argument 'system_prompt'",
+      "trace_id": "test-mixed-scenario-0",
+      "trace_url": null
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "correct": 0,
+    "accuracy": 0.0,
+    "avg_latency_ms": 0.05507469177246094,
+    "by_category": {
+      "mixed": {
+        "total": 1,
+        "correct": 0,
+        "accuracy": 0.0,
+        "avg_latency_ms": 0.05507469177246094,
+        "errors": 1
+      }
+    },
+    "errors": 1
+  },
+  "identity_id": "default_assistant",
+  "guidance_id": "default_ethical_guidance",
+  "processing_time_ms": 0.09918212890625,
+  "model_name": "",
+  "trace_id": "test-mixed",
+  "completed_at": "2026-01-04T17:29:25.493908+00:00"
+}
