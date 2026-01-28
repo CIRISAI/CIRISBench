@@ -1,0 +1,264 @@
+# =============================================================================
+# HE-300 Benchmark Stack - Docker Compose
+# =============================================================================
+#
+# Complete stack for running HE-300 benchmarks with CIRISNode and EEE.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.he300.yml up -d
+#
+# Environment variables:
+#   See .env.example for full list
+#
+# =============================================================================
+
+name: he300-benchmark
+
+services:
+  # ---------------------------------------------------------------------------
+  # CIRISNode API
+  # ---------------------------------------------------------------------------
+  cirisnode:
+    build:
+      context: ${CIRISNODE_PATH:-../submodules/cirisnode}
+      dockerfile: Dockerfile
+      args:
+        - BUILD_DATE=${BUILD_DATE:-unknown}
+        - VERSION=${VERSION:-0.1.0}
+        - GIT_HASH=${GIT_HASH:-unknown}
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/cirisnode:${IMAGE_TAG:-latest}
+    container_name: he300-cirisnode
+    ports:
+      - "${CIRISNODE_PORT:-8000}:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@db:5432/cirisnode}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - JWT_SECRET=${JWT_SECRET:-change-this}
+      # EEE Integration
+      - EEE_ENABLED=${EEE_ENABLED:-true}
+      - EEE_BASE_URL=http://eee:8080
+      - EEE_TIMEOUT_SECONDS=${EEE_TIMEOUT_SECONDS:-300}
+      - EEE_BATCH_SIZE=${EEE_BATCH_SIZE:-50}
+      - EEE_RETRY_COUNT=${EEE_RETRY_COUNT:-3}
+      # HE-300 Settings
+      - HE300_SAMPLE_SIZE=${HE300_SAMPLE_SIZE:-300}
+      - HE300_SEED=${HE300_SEED:-42}
+      # LLM
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+    volumes:
+      - cirisnode_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eee:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # CIRISNode Celery Worker
+  # ---------------------------------------------------------------------------
+  cirisnode-worker:
+    build:
+      context: ${CIRISNODE_PATH:-../submodules/cirisnode}
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/cirisnode:${IMAGE_TAG:-latest}
+    container_name: he300-cirisnode-worker
+    command: celery -A cirisnode.celery_app worker -l ${LOG_LEVEL:-info} -c ${CELERY_CONCURRENCY:-4}
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@db:5432/cirisnode}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - JWT_SECRET=${JWT_SECRET:-change-this}
+      # EEE Integration
+      - EEE_ENABLED=${EEE_ENABLED:-true}
+      - EEE_BASE_URL=http://eee:8080
+      - EEE_TIMEOUT_SECONDS=${EEE_TIMEOUT_SECONDS:-300}
+      - EEE_BATCH_SIZE=${EEE_BATCH_SIZE:-50}
+      # LLM
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+    depends_on:
+      - cirisnode
+      - redis
+      - eee
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Enterprise
+  # ---------------------------------------------------------------------------
+  eee:
+    build:
+      context: ${EEE_PATH:-../submodules/ethicsengine}
+      dockerfile: Dockerfile
+      args:
+        - BUILD_DATE=${BUILD_DATE:-unknown}
+        - VERSION=${VERSION:-0.1.0}
+        - GIT_HASH=${GIT_HASH:-unknown}
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/ethicsengine-enterprise:${IMAGE_TAG:-latest}
+    container_name: he300-eee
+    ports:
+      - "${EEE_PORT:-8080}:8080"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - HOST=0.0.0.0
+      - PORT=8080
+      # HE-300 Settings
+      - HE300_ENABLED=${HE300_ENABLED:-true}
+      - HE300_BATCH_SIZE=${HE300_BATCH_SIZE:-50}
+      - HE300_DEFAULT_TIMEOUT=${HE300_DEFAULT_TIMEOUT:-300}
+      # LLM
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - eee_data:/app/data
+      - eee_config:/app/config
+      - eee_datasets:/app/datasets
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: he300-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-cirisnode}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: he300-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # Ollama LLM Server
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: he300-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # CIRISNode UI (Optional)
+  # ---------------------------------------------------------------------------
+  ui:
+    build:
+      context: ${CIRISNODE_PATH:-../submodules/cirisnode}/ui
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/cirisnode-ui:${IMAGE_TAG:-latest}
+    container_name: he300-ui
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    environment:
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:${CIRISNODE_PORT:-8000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-this}
+    depends_on:
+      - cirisnode
+    restart: unless-stopped
+    networks:
+      - he300-network
+    profiles:
+      - ui
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_models:
+    driver: local
+  cirisnode_data:
+    driver: local
+  eee_data:
+    driver: local
+  eee_config:
+    driver: local
+  eee_datasets:
+    driver: local
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  he300-network:
+    driver: bridge
+    name: he300-network

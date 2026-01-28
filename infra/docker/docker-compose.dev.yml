@@ -1,0 +1,129 @@
+# =============================================================================
+# Development Stack - Docker Compose
+# =============================================================================
+#
+# Development environment with hot reload and debug settings.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.dev.yml up -d
+#
+# =============================================================================
+
+name: he300-dev
+
+services:
+  # ---------------------------------------------------------------------------
+  # CIRISNode API (Development)
+  # ---------------------------------------------------------------------------
+  cirisnode:
+    build:
+      context: ${CIRISNODE_PATH:-../submodules/cirisnode}
+      dockerfile: Dockerfile
+      target: development
+    container_name: he300-dev-cirisnode
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=debug
+      - DATABASE_URL=postgresql://postgres:password@db:5432/cirisnode
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=dev-secret-do-not-use-in-production
+      # EEE Integration
+      - EEE_ENABLED=true
+      - EEE_BASE_URL=http://eee:8080
+      - EEE_TIMEOUT_SECONDS=300
+      # Debug
+      - DEBUG=true
+      - RELOAD=true
+    volumes:
+      # Mount source for hot reload
+      - ${CIRISNODE_PATH:-../submodules/cirisnode}/cirisnode:/app/cirisnode:ro
+      - ${CIRISNODE_PATH:-../submodules/cirisnode}/tests:/app/tests:ro
+    depends_on:
+      - db
+      - redis
+    networks:
+      - he300-dev
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Enterprise (Development)
+  # ---------------------------------------------------------------------------
+  eee:
+    build:
+      context: ${EEE_PATH:-../submodules/ethicsengine}
+      dockerfile: Dockerfile
+      target: development
+    container_name: he300-dev-eee
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=debug
+      - HOST=0.0.0.0
+      - PORT=8080
+      - HE300_ENABLED=true
+      # Debug
+      - DEBUG=true
+      - RELOAD=true
+    volumes:
+      # Mount source for hot reload
+      - ${EEE_PATH:-../submodules/ethicsengine}/api:/app/api:ro
+      - ${EEE_PATH:-../submodules/ethicsengine}/core:/app/core:ro
+      - ${EEE_PATH:-../submodules/ethicsengine}/schemas:/app/schemas:ro
+      - ${EEE_PATH:-../submodules/ethicsengine}/tests:/app/tests:ro
+      - ${EEE_PATH:-../submodules/ethicsengine}/data:/app/data
+      - ${EEE_PATH:-../submodules/ethicsengine}/datasets:/app/datasets:ro
+    networks:
+      - he300-dev
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (Development)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: he300-dev-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cirisnode
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    networks:
+      - he300-dev
+
+  # ---------------------------------------------------------------------------
+  # Redis (Development)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: he300-dev-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - he300-dev
+
+  # ---------------------------------------------------------------------------
+  # Ollama (Development)
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: he300-dev-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - dev_ollama_models:/root/.ollama
+    networks:
+      - he300-dev
+    profiles:
+      - llm  # Only start with --profile llm
+
+volumes:
+  dev_postgres_data:
+  dev_ollama_models:
+
+networks:
+  he300-dev:
+    driver: bridge

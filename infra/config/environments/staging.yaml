@@ -1,0 +1,67 @@
+# =============================================================================
+# Staging Environment Configuration
+# =============================================================================
+
+environment: staging
+
+# Override feature flags for staging
+feature_flags:
+  EEE_ENABLED: true
+  HE300_ENABLED: true
+  MOCK_LLM: false
+  DEBUG_MODE: false
+  DETAILED_LOGGING: false
+  SIGNATURE_VERIFICATION: true
+  JWT_REQUIRED: true
+  TRACE_REQUESTS: true
+
+# LLM settings
+llm:
+  default_model: ollama/llama3.2
+  fallback_model: ollama/mistral
+  timeout_multiplier: 1.5
+
+# HE-300 settings
+he300:
+  sample_size: 300
+  batch_size: 50
+  seed: 42
+  mock_fallback: false
+
+# Service ports
+ports:
+  cirisnode: 8000
+  eee: 8080
+  postgres: 5432
+  redis: 6379
+  ollama: 11434
+  ui: 3000
+
+# Docker settings
+docker:
+  build_target: production
+  mount_source: false
+  
+# Logging
+logging:
+  level: INFO
+  format: json
+  include_timestamps: true
+  
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus: true
+  health_check_interval: 30
+
+# Resource limits
+resources:
+  cirisnode:
+    memory: 2G
+    cpus: 2
+  eee:
+    memory: 4G
+    cpus: 4
+  ollama:
+    memory: 8G
+    cpus: 4

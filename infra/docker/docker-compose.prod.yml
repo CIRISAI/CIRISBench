@@ -1,0 +1,274 @@
+# =============================================================================
+# Production Stack - Docker Compose
+# =============================================================================
+#
+# Production-ready configuration with security, monitoring, and HA settings.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.prod.yml up -d
+#
+# =============================================================================
+
+name: he300-prod
+
+services:
+  # ---------------------------------------------------------------------------
+  # Nginx Load Balancer
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: he300-prod-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - cirisnode
+      - eee
+    restart: always
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # CIRISNode API (Production)
+  # ---------------------------------------------------------------------------
+  cirisnode:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/cirisnode:${IMAGE_TAG:-latest}
+    container_name: he300-prod-cirisnode
+    expose:
+      - "8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-warning}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      # EEE Integration
+      - EEE_ENABLED=true
+      - EEE_BASE_URL=http://eee:8080
+      - EEE_TIMEOUT_SECONDS=${EEE_TIMEOUT_SECONDS:-300}
+    volumes:
+      - cirisnode_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '2'
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # CIRISNode Celery Worker (Production)
+  # ---------------------------------------------------------------------------
+  cirisnode-worker:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/cirisnode:${IMAGE_TAG:-latest}
+    container_name: he300-prod-cirisnode-worker
+    command: celery -A cirisnode.celery_app worker -l ${LOG_LEVEL:-warning} -c ${CELERY_CONCURRENCY:-8}
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-warning}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - EEE_ENABLED=true
+      - EEE_BASE_URL=http://eee:8080
+    depends_on:
+      - cirisnode
+      - redis
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Enterprise (Production)
+  # ---------------------------------------------------------------------------
+  eee:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/ethicsengine-enterprise:${IMAGE_TAG:-latest}
+    container_name: he300-prod-eee
+    expose:
+      - "8080"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-warning}
+      - HOST=0.0.0.0
+      - PORT=8080
+      - HE300_ENABLED=true
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - eee_data:/app/data
+      - eee_config:/app/config
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '8'
+        reservations:
+          memory: 4G
+          cpus: '4'
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (Production)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: he300-prod-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-cirisnode}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # Redis (Production)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: he300-prod-redis
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # Ollama (Production)
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: he300-prod-ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+          cpus: '8'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - he300-prod
+
+  # ---------------------------------------------------------------------------
+  # Prometheus (Monitoring)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: he300-prod-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    restart: always
+    networks:
+      - he300-prod
+    profiles:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Grafana (Dashboards)
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: he300-prod-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: always
+    networks:
+      - he300-prod
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_models:
+  cirisnode_data:
+  eee_data:
+  eee_config:
+  prometheus_data:
+  grafana_data:
+  nginx_logs:
+
+networks:
+  he300-prod:
+    driver: bridge

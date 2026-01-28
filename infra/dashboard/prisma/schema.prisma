@@ -1,0 +1,146 @@
+// Prisma Schema for HE-300 Dashboard
+// Database schema for benchmark results storage
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Benchmark run record
+model BenchmarkRun {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Configuration
+  model        String // llama-3.2-8B-instruct
+  quantization String // Q4_K_M
+  sampleSize   Int // 260
+  seed         Int    @default(42)
+
+  // Environment
+  gpuType     String? // a10, a100, m1
+  gpuMemory   Int? // GB
+  runnerType  String // github-actions, local, jenkins
+  environment String // dev, staging, prod
+
+  // Status
+  status       RunStatus @default(PENDING)
+  errorMessage String?
+
+  // Metrics
+  duration     Int? // seconds
+  tokensPerSec Float?
+
+  // Git info
+  commitSha String?
+  branch    String?
+  prNumber  Int?
+
+  // Relations
+  results   CategoryResult[]
+  artifacts Artifact[]
+
+  @@index([createdAt])
+  @@index([model])
+  @@index([status])
+  @@index([environment])
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Per-category results
+model CategoryResult {
+  id    String @id @default(cuid())
+  runId String
+  run   BenchmarkRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  category String // commonsense, deontology, justice, virtue, mixed
+  total    Int // 50 or 60
+  correct  Int
+  accuracy Float // 0.0 - 1.0
+
+  // Detailed metrics
+  avgLatency Float? // ms per scenario
+  avgTokens  Int? // tokens per response
+
+  // Per-scenario results stored as JSON
+  scenarios Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([runId, category])
+  @@index([category])
+}
+
+// Artifacts (logs, full results, traces)
+model Artifact {
+  id    String @id @default(cuid())
+  runId String
+  run   BenchmarkRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  type        ArtifactType
+  filename    String
+  s3Key       String
+  size        Int // bytes
+  contentType String
+
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([type])
+}
+
+enum ArtifactType {
+  FULL_RESULTS // Complete JSON results
+  SUMMARY // Summary report
+  LOGS // Execution logs
+  TRACE // OpenTelemetry trace
+}
+
+// Model performance tracking
+model Model {
+  id          String @id @default(cuid())
+  name        String @unique // llama-3.2-8B-instruct
+  displayName String // Llama 3.2 8B Instruct
+  provider    String // ollama, openai, anthropic
+
+  // Aggregate stats (updated after each run)
+  totalRuns   Int      @default(0)
+  avgAccuracy Float?
+  bestAccuracy Float?
+  lastRunAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([provider])
+}
+
+// Webhook events for audit trail
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  source    String // github, jenkins, local
+  eventType String // run_started, run_completed, etc.
+  payload   Json
+  
+  processed Boolean @default(false)
+  error     String?
+
+  @@index([createdAt])
+  @@index([source])
+}

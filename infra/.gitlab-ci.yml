@@ -1,0 +1,147 @@
+# =============================================================================
+# GitLab CI/CD Pipeline for HE-300 Stack
+# =============================================================================
+#
+# This provides GitLab CI/CD support as an alternative to GitHub Actions.
+#
+# =============================================================================
+
+stages:
+  - setup
+  - test
+  - build
+  - deploy
+  - benchmark
+
+variables:
+  PYTHON_VERSION: "3.12"
+  DOCKER_REGISTRY: "${CI_REGISTRY}"
+  IMAGE_TAG: "${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
+  CIRISNODE_BRANCH: "feature/eee-integration"
+  EEE_BRANCH: "feature/he300-api"
+
+# -----------------------------------------------------------------------------
+# Setup Stage
+# -----------------------------------------------------------------------------
+
+setup-submodules:
+  stage: setup
+  image: alpine/git
+  script:
+    - chmod +x scripts/*.sh
+    - ./scripts/setup-submodules.sh
+  artifacts:
+    paths:
+      - submodules/
+    expire_in: 1 hour
+
+# -----------------------------------------------------------------------------
+# Test Stage
+# -----------------------------------------------------------------------------
+
+.python-test:
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - pip install pytest pytest-asyncio pytest-cov
+
+test-cirisnode:
+  extends: .python-test
+  stage: test
+  needs: ["setup-submodules"]
+  variables:
+    EEE_ENABLED: "false"
+    JWT_SECRET: "test-secret"
+  script:
+    - cd submodules/cirisnode
+    - pip install -r requirements.txt
+    - pytest tests/ -v --junitxml=../../test-results-cirisnode.xml
+  artifacts:
+    reports:
+      junit: test-results-cirisnode.xml
+    when: always
+
+test-eee:
+  extends: .python-test
+  stage: test
+  needs: ["setup-submodules"]
+  variables:
+    FF_MOCK_LLM: "true"
+  script:
+    - cd submodules/ethicsengine
+    - pip install -r requirements.txt
+    - pytest tests/ -v --junitxml=../../test-results-eee.xml
+  artifacts:
+    reports:
+      junit: test-results-eee.xml
+    when: always
+
+lint:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  needs: ["setup-submodules"]
+  script:
+    - pip install ruff black isort
+    - ruff check submodules/cirisnode/cirisnode submodules/ethicsengine/api
+  allow_failure: true
+
+# -----------------------------------------------------------------------------
+# Build Stage
+# -----------------------------------------------------------------------------
+
+build-images:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  needs: ["test-cirisnode", "test-eee"]
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - ./scripts/build-images.sh push --tag $IMAGE_TAG --registry $DOCKER_REGISTRY
+  only:
+    - main
+    - tags
+    - merge_requests
+
+# -----------------------------------------------------------------------------
+# Deploy Stage
+# -----------------------------------------------------------------------------
+
+deploy-staging:
+  stage: deploy
+  needs: ["build-images"]
+  script:
+    - ./scripts/deploy.sh staging --tag $IMAGE_TAG
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+    - main
+
+deploy-production:
+  stage: deploy
+  needs: ["build-images"]
+  script:
+    - ./scripts/deploy.sh production --tag $IMAGE_TAG
+  environment:
+    name: production
+    url: https://production.example.com
+  when: manual
+  only:
+    - tags
+
+# -----------------------------------------------------------------------------
+# Benchmark Stage
+# -----------------------------------------------------------------------------
+
+run-benchmark:
+  stage: benchmark
+  needs: ["deploy-staging"]
+  script:
+    - ./scripts/run-benchmark.sh --quick --output results/benchmark-${CI_PIPELINE_ID}.json
+  artifacts:
+    paths:
+      - results/
+    expire_in: 30 days
+  only:
+    - main
+  when: manual

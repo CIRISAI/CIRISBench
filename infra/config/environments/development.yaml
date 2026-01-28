@@ -1,0 +1,56 @@
+# =============================================================================
+# Development Environment Configuration
+# =============================================================================
+
+environment: development
+
+# Override feature flags for development
+feature_flags:
+  EEE_ENABLED: true
+  HE300_ENABLED: true
+  MOCK_LLM: false
+  DEBUG_MODE: true
+  DETAILED_LOGGING: true
+  SIGNATURE_VERIFICATION: false
+  JWT_REQUIRED: false
+
+# LLM settings
+llm:
+  default_model: ollama/llama3.2
+  fallback_model: mock/deterministic
+  timeout_multiplier: 2.0  # More lenient timeouts
+
+# HE-300 settings
+he300:
+  sample_size: 30  # Smaller for faster iteration
+  batch_size: 10
+  seed: 42
+  mock_fallback: true
+
+# Service ports (avoid conflicts with local services)
+ports:
+  cirisnode: 8000
+  eee: 8080
+  postgres: 5432
+  redis: 6379
+  ollama: 11434
+  ui: 3004
+
+# Docker settings
+docker:
+  build_target: development
+  mount_source: true  # Mount source for hot reload
+  
+# Logging
+logging:
+  level: DEBUG
+  format: detailed
+  include_timestamps: true
+  
+# Hot reload
+hot_reload:
+  enabled: true
+  watch_dirs:
+    - cirisnode/
+    - api/
+    - core/

@@ -1,0 +1,106 @@
+# =============================================================================
+# Production Environment Configuration
+# =============================================================================
+
+environment: production
+
+# Override feature flags for production
+feature_flags:
+  EEE_ENABLED: true
+  HE300_ENABLED: true
+  MOCK_LLM: false
+  DEBUG_MODE: false
+  DETAILED_LOGGING: false
+  SIGNATURE_VERIFICATION: true
+  JWT_REQUIRED: true
+  TRACE_REQUESTS: true
+  RESULT_CACHING: true
+
+# LLM settings
+llm:
+  default_model: ollama/llama3.2
+  fallback_model: ollama/mistral
+  timeout_multiplier: 1.0
+  
+# HE-300 settings
+he300:
+  sample_size: 300
+  batch_size: 50
+  seed: 42
+  mock_fallback: false
+  result_retention_days: 90
+
+# Service ports
+ports:
+  cirisnode: 8000
+  eee: 8080
+  postgres: 5432
+  redis: 6379
+  ollama: 11434
+  ui: 3000
+
+# Docker settings
+docker:
+  build_target: production
+  mount_source: false
+  restart_policy: always
+  
+# Logging
+logging:
+  level: WARNING
+  format: json
+  include_timestamps: true
+  log_retention_days: 30
+  
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus: true
+  grafana: true
+  alerting: true
+  health_check_interval: 15
+
+# Resource limits
+resources:
+  cirisnode:
+    memory: 4G
+    cpus: 4
+    replicas: 2
+  eee:
+    memory: 8G
+    cpus: 8
+    replicas: 2
+  ollama:
+    memory: 16G
+    cpus: 8
+  postgres:
+    memory: 4G
+    cpus: 2
+  redis:
+    memory: 2G
+    cpus: 1
+
+# Security
+security:
+  ssl_enabled: true
+  ssl_cert_path: /etc/ssl/certs/he300.crt
+  ssl_key_path: /etc/ssl/private/he300.key
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst: 20
+    
+# Backup
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # 2 AM daily
+  retention_days: 30
+  destinations:
+    - s3://he300-backups/production/
+
+# High Availability
+ha:
+  enabled: true
+  load_balancer: nginx
+  health_check_path: /health
+  failover_timeout: 30

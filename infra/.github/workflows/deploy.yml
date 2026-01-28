@@ -1,0 +1,194 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      target_host:
+        description: 'Deployment target (localhost or IP/hostname)'
+        required: true
+        default: 'localhost'
+        type: string
+      auto_deploy:
+        description: 'Auto-run docker compose up after apply'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.7.0"
+
+jobs:
+  plan:
+    name: "📋 Plan"
+    runs-on: ubuntu-latest
+    if: inputs.action == 'plan' || inputs.action == 'apply'
+    outputs:
+      plan_exitcode: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan \
+            -var="target_host=${{ inputs.target_host }}" \
+            -var="auto_deploy=${{ inputs.auto_deploy }}" \
+            2>&1 | tee plan.txt
+        working-directory: terraform/environments/${{ inputs.environment }}
+        continue-on-error: true
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: |
+            terraform/environments/${{ inputs.environment }}/tfplan
+            terraform/environments/${{ inputs.environment }}/plan.txt
+
+      - name: Plan Summary
+        run: |
+          echo "## 📋 Terraform Plan - ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Host:** \`${{ inputs.target_host }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Click to expand plan output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```hcl' >> $GITHUB_STEP_SUMMARY
+          head -500 terraform/environments/${{ inputs.environment }}/plan.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+  apply:
+    name: "🚀 Apply"
+    runs-on: ubuntu-latest
+    needs: plan
+    if: inputs.action == 'apply'
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.output.outputs.dashboard_url }}
+    outputs:
+      dashboard_url: ${{ steps.output.outputs.dashboard_url }}
+      cirisnode_url: ${{ steps.output.outputs.cirisnode_url }}
+      eee_url: ${{ steps.output.outputs.eee_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}
+          path: terraform/environments/${{ inputs.environment }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Get Outputs
+        id: output
+        run: |
+          echo "dashboard_url=$(terraform output -raw dashboard_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "cirisnode_url=$(terraform output -raw cirisnode_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "eee_url=$(terraform output -raw eee_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "deploy_command=$(terraform output -raw deploy_command 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "env_file=$(terraform output -raw env_file 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Upload Generated Configs
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-configs-${{ inputs.environment }}
+          path: |
+            terraform/environments/${{ inputs.environment }}/.env
+            terraform/environments/${{ inputs.environment }}/docker-compose.override.yml
+
+      - name: Apply Summary
+        run: |
+          echo "## 🚀 Configuration Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target Host | \`${{ inputs.target_host }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| CIRISNode | ${{ steps.output.outputs.cirisnode_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| EthicsEngine | ${{ steps.output.outputs.eee_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dashboard | ${{ steps.output.outputs.dashboard_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the \`docker-configs-${{ inputs.environment }}\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "2. Copy files to your target host" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run: \`docker compose up -d\`" >> $GITHUB_STEP_SUMMARY
+
+  destroy:
+    name: "💥 Destroy"
+    runs-on: ubuntu-latest
+    if: inputs.action == 'destroy'
+    environment: ${{ inputs.environment }}-destroy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        working-directory: terraform/environments/${{ inputs.environment }}
+
+      - name: Destroy Summary
+        run: |
+          echo "## ⚠️ Configuration Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Destroyed By | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u +\"%Y-%m-%d %H:%M:%S UTC\") |" >> $GITHUB_STEP_SUMMARY
