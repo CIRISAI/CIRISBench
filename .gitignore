@@ -107,3 +107,4 @@ models/
 
 # Jupyter
 .ipynb_checkpoints/
+demo/.env*
