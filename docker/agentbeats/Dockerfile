@@ -61,6 +61,10 @@ RUN pip install --prefix=/install .
 COPY engine/requirements.txt ./engine-requirements.txt
 RUN pip install --prefix=/install -r engine-requirements.txt
 
+# Install CIRISNode dependencies
+COPY CIRISNode/requirements.txt ./cirisnode-requirements.txt
+RUN pip install --prefix=/install -r cirisnode-requirements.txt
+
 # =============================================================================
 # Runtime stage
 # =============================================================================
@@ -86,6 +90,7 @@ WORKDIR /app
 # Copy application code
 COPY --chown=ciris:ciris cirisbench/ ./cirisbench/
 COPY --chown=ciris:ciris engine/ ./engine/
+COPY --chown=ciris:ciris CIRISNode/cirisnode/ ./cirisnode/
 
 # Copy AgentBeats configuration
 COPY --chown=ciris:ciris docker/agentbeats/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

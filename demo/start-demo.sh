@@ -22,11 +22,11 @@ fi
 echo "✓ OpenRouter API key found"
 echo ""
 
-# Start Green Agent (CIRISBench)
-echo "Starting Green Agent (CIRISBench)..."
+# Start Green Agent (CIRISBench) and UI
+echo "Starting CIRISBench (Backend + UI)..."
 cd "$PROJECT_DIR/docker/agentbeats"
-docker compose up -d cirisbench
-echo "✓ Green Agent starting on ports 8000 (Node) and 8080 (EEE)"
+docker compose up -d cirisbench ui
+echo "✓ Services starting..."
 echo ""
 
 # Wait for services
@@ -37,6 +37,7 @@ sleep 10
 echo "Checking services..."
 curl -sf http://localhost:8000/health > /dev/null && echo "✓ CIRISNode ready (http://localhost:8000)" || echo "⏳ CIRISNode starting..."
 curl -sf http://localhost:8080/health > /dev/null && echo "✓ EthicsEngine ready (http://localhost:8080)" || echo "⏳ EthicsEngine starting..."
+curl -sf http://localhost:3000 > /dev/null && echo "✓ CIRISBench UI ready (http://localhost:3000)" || echo "⏳ CIRISBench UI starting..."
 echo ""
 
 # Instructions for purple agent
