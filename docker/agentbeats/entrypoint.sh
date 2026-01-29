@@ -36,7 +36,9 @@ if [ -n "$REDIS_URL" ]; then
     timeout 30 bash -c 'until curl -sf "${REDIS_URL}" 2>/dev/null; do sleep 1; done' || true
 fi
 
-if [ -n "$OLLAMA_BASE_URL" ]; then
+if [ "$LLM_PROVIDER" = "openrouter" ]; then
+    echo "Using OpenRouter API"
+elif [ -n "$OLLAMA_BASE_URL" ]; then
     echo "Waiting for Ollama..."
     timeout 60 bash -c "until curl -sf ${OLLAMA_BASE_URL}/api/tags 2>/dev/null; do sleep 2; done" || echo "Ollama not available, continuing..."
 fi
