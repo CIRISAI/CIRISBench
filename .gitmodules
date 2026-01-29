@@ -1,0 +1,3 @@
+[submodule "CIRISNode"]
+	path = CIRISNode
+	url = https://github.com/CIRISAI/CIRISNode.git

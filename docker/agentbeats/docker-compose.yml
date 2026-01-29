@@ -70,6 +70,25 @@ services:
       start_period: 60s
     restart: unless-stopped
     networks:
+      agentbeats:
+        aliases:
+          - api
+
+  # ===========================================================================
+  # CIRISBench UI (Next.js)
+  # ===========================================================================
+  ui:
+    build:
+      context: ../../CIRISNode/ui
+      dockerfile: ../../docker/agentbeats/Dockerfile.ui
+    image: ${DOCKER_REGISTRY:-ghcr.io/cirisai}/cirisbench-ui:${IMAGE_TAG:-agentbeats}
+    container_name: cirisbench-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
       - agentbeats
 
   # ===========================================================================
