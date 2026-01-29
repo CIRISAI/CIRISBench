@@ -9,6 +9,7 @@ on:
       - 'engine/**'
       - 'tests/mock_purple_agent.py'
       - 'tests/multi_provider_agent.py'
+      - 'tests/eee_purple_agent.py'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
@@ -99,5 +100,24 @@ jobs:
           push: true
           tags: ${{ steps.meta-multi.outputs.tags }}
           labels: ${{ steps.meta-multi.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for EEE purple agent
+        id: meta-eee
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=eee-purple
+
+      - name: Build and push EEE Purple Agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/eee-purple-agent/Dockerfile
+          push: true
+          tags: ${{ steps.meta-eee.outputs.tags }}
+          labels: ${{ steps.meta-eee.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
