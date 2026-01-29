@@ -8,6 +8,7 @@ on:
       - 'cirisbench/**'
       - 'engine/**'
       - 'tests/mock_purple_agent.py'
+      - 'tests/multi_provider_agent.py'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
@@ -77,5 +78,24 @@ jobs:
           push: true
           tags: ${{ steps.meta-mock.outputs.tags }}
           labels: ${{ steps.meta-mock.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for multi-provider agent
+        id: meta-multi
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=multi-provider
+
+      - name: Build and push Multi-Provider Agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/multi-provider-agent/Dockerfile
+          push: true
+          tags: ${{ steps.meta-multi.outputs.tags }}
+          labels: ${{ steps.meta-multi.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
