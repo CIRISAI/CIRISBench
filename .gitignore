@@ -108,3 +108,6 @@ models/
 # Jupyter
 .ipynb_checkpoints/
 demo/.env*
+
+# Local run scripts with API keys (root only)
+/run_*.sh
