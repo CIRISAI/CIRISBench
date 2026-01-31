@@ -22,11 +22,18 @@ Access the HE-300 Web Interface at **http://localhost:3000/he300** for:
 
 ### Three Agent Demo Tabs
 
-| Tab | Agent Type | Description |
-|-----|------------|-------------|
-| **Base LLM** | Direct API | Raw LLM evaluation without reasoning pipeline |
-| **EEE Purple** | EEE Pipeline | Full reasoning pipeline with dual evaluation |
-| **CIRIS Agent** | H3ERE Pipeline | CIRIS agent with ethical reasoning |
+| Tab | Agent Type | Protocol | Endpoint | Description |
+|-----|------------|----------|----------|-------------|
+| **Base LLM** | Direct API | HTTP REST | `POST /he300/batch` | Raw LLM evaluation without reasoning pipeline |
+| **EEE Purple** | EEE Pipeline | A2A | `POST http://localhost:9000/a2a` | Full reasoning pipeline with dual evaluation |
+| **CIRIS Agent** | H3ERE Pipeline | A2A | `POST http://localhost:9001/a2a` | CIRIS agent with ethical reasoning |
+
+### Benchmark Tab
+
+Run full HE-300 benchmarks against any A2A or MCP compatible agent:
+- **Supported Protocols**: A2A (Agent-to-Agent), MCP (Model Context Protocol)
+- **Auto-distribution**: Scenarios automatically divided across 5 categories per spec
+- **Reproducibility**: Optional random seed for deterministic scenario selection
 
 ### Report Features
 

@@ -37,17 +37,31 @@ http://<server-ip>:3000/he300
 
 The HE-300 interface provides **three agent evaluation tabs**:
 
-| Tab | Agent Type | Container | Description |
-|-----|------------|-----------|-------------|
-| **Base LLM** | Direct API | None | Raw LLM evaluation without reasoning pipeline |
-| **EEE Purple** | EEE Pipeline | `eee-purple-agent:9000` | Full reasoning pipeline with ethical evaluation |
-| **CIRIS Agent** | H3ERE Pipeline | `ciris-benchmark:9001` | CIRIS agent with hierarchical reasoning |
+| Tab | Agent Type | Protocol | Endpoint | Description |
+|-----|------------|----------|----------|-------------|
+| **Base LLM** | Direct API | HTTP REST | `POST /he300/batch` | Raw LLM evaluation without reasoning pipeline |
+| **EEE Purple** | EEE Pipeline | A2A | `POST http://localhost:9000/a2a` | Full reasoning pipeline with ethical evaluation |
+| **CIRIS Agent** | H3ERE Pipeline | A2A | `POST http://localhost:9001/a2a` | CIRIS agent with hierarchical reasoning |
 
 Each tab allows you to:
 - Select from multiple LLM models (Llama, GPT-4, Claude)
-- Configure identity profiles and ethical guidance
+- Configure identity profiles and ethical guidance (EEE Purple only)
 - Run benchmarks with real Hendrycks Ethics dataset scenarios
 - View dual evaluation results (heuristic + semantic)
+
+### Benchmark Tab
+
+The **Benchmark** tab runs full HE-300 benchmarks against any A2A or MCP compatible agent:
+
+| Setting | Description |
+|---------|-------------|
+| **Protocol** | A2A (Agent-to-Agent) or MCP (Model Context Protocol) |
+| **Agent URL** | Full endpoint URL (e.g., `http://localhost:9000/a2a`) |
+| **Sample Size** | 10, 30, 60, 150, or 300 scenarios |
+| **Concurrency** | 10, 50, or 100 parallel requests |
+| **Random Seed** | Optional seed for reproducible scenario selection |
+
+Scenarios are automatically distributed across all 5 HE-300 categories per the specification.
 
 ---
 
