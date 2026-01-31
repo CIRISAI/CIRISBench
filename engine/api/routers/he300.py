@@ -50,6 +50,7 @@ from schemas.he300_validation import (
 from core.engine import EthicsEngine
 from core.he300_validator import HE300Validator, sample_scenarios_deterministic
 from api.routers.he300_spec import get_cached_spec
+from api.routers.sse import publish_event_sync, event_bus
 from config.settings import settings
 
 # CIRIS trace validation imports (optional)
@@ -502,7 +503,16 @@ async def evaluate_batch(
         )
     
     logger.info(f"Processing HE-300 batch {request.batch_id} with {len(request.scenarios)} scenarios")
-    
+
+    # Publish SSE event for batch start
+    publish_event_sync("benchmark_start", {
+        "batch_id": request.batch_id,
+        "total_scenarios": len(request.scenarios),
+        "type": "base_llm",
+        "identity_id": request.identity_id,
+        "guidance_id": request.guidance_id,
+    })
+
     # Evaluate all scenarios
     # Run sequentially to avoid overwhelming the LLM
     # Use enumerate to get scenario index for trace ID generation
@@ -517,6 +527,18 @@ async def evaluate_batch(
             scenario_index=idx,
         )
         results.append(result)
+
+        # Publish progress event every 5 scenarios
+        if (idx + 1) % 5 == 0 or idx == len(request.scenarios) - 1:
+            correct_so_far = sum(1 for r in results if r.is_correct)
+            publish_event_sync("benchmark_progress", {
+                "batch_id": request.batch_id,
+                "completed": idx + 1,
+                "total": len(request.scenarios),
+                "correct": correct_so_far,
+                "accuracy": correct_so_far / (idx + 1) if idx > 0 else 0,
+                "current_scenario": scenario.scenario_id,
+            })
     
     # Calculate summary
     summary = calculate_summary(results)
@@ -536,7 +558,19 @@ async def evaluate_batch(
         f"{summary.correct}/{summary.total} correct ({summary.accuracy:.2%}), "
         f"{summary.errors} errors, {processing_time_ms:.1f}ms"
     )
-    
+
+    # Publish SSE event for batch completion
+    publish_event_sync("benchmark_complete", {
+        "batch_id": request.batch_id,
+        "status": batch_status,
+        "total": summary.total,
+        "correct": summary.correct,
+        "accuracy": summary.accuracy,
+        "errors": summary.errors,
+        "processing_time_ms": processing_time_ms,
+        "type": "base_llm",
+    })
+
     response_data = HE300BatchResponse(
         batch_id=request.batch_id,
         status=batch_status,
@@ -1366,6 +1400,17 @@ async def run_agentbeats_benchmark(
         f"sample_size={request.sample_size}, seed={seed}"
     )
 
+    # Publish SSE event for benchmark start
+    publish_event_sync("benchmark_start", {
+        "batch_id": batch_id,
+        "total_scenarios": request.sample_size,
+        "type": "agentbeats",
+        "agent_url": request.agent_url,
+        "agent_name": request.agent_name,
+        "protocol": request.protocol,
+        "concurrency": request.concurrency,
+    })
+
     # Load and sample scenarios
     all_scenarios = get_all_scenarios()
 
@@ -1482,6 +1527,19 @@ async def run_agentbeats_benchmark(
         f"{result.correct}/{result.total} correct ({result.accuracy:.2%}), "
         f"{result.errors} errors, {result.processing_time_ms:.1f}ms"
     )
+
+    # Publish SSE event for benchmark completion
+    publish_event_sync("benchmark_complete", {
+        "batch_id": batch_id,
+        "status": "completed",
+        "total": result.total,
+        "correct": result.correct,
+        "accuracy": result.accuracy,
+        "errors": result.errors,
+        "processing_time_ms": result.processing_time_ms,
+        "type": "agentbeats",
+        "agent_name": request.agent_name,
+    })
 
     return AgentBeatsBenchmarkResponse(
         batch_id=batch_id,
