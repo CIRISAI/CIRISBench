@@ -7,6 +7,7 @@ on:
       - 'docker/**'
       - 'cirisbench/**'
       - 'engine/**'
+      - 'CIRISNode/ui/**'
       - 'tests/mock_purple_agent.py'
       - 'tests/multi_provider_agent.py'
       - 'tests/eee_purple_agent.py'
@@ -119,5 +120,26 @@ jobs:
           push: true
           tags: ${{ steps.meta-eee.outputs.tags }}
           labels: ${{ steps.meta-eee.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for UI
+        id: meta-ui
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ui
+          tags: |
+            type=raw,value=agentbeats
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Build and push UI image
+        uses: docker/build-push-action@v5
+        with:
+          context: CIRISNode/ui
+          file: docker/agentbeats/Dockerfile.ui
+          push: true
+          tags: ${{ steps.meta-ui.outputs.tags }}
+          labels: ${{ steps.meta-ui.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

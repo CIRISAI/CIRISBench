@@ -191,6 +191,8 @@ Supported LLM providers:
 | `/he300/catalog` | GET | List available scenarios |
 | `/he300/batch` | POST | Sequential batch evaluation |
 | `/he300/run` | POST | Full 300-scenario compliant run |
+| `/sse/stream` | GET | Server-Sent Events for live status |
+| `/sse/status` | GET | System status (non-streaming) |
 
 ### AgentBeats Run Request
 
@@ -297,10 +299,22 @@ CIRISBench/
 
 ## Docker Images
 
-| Image | Description |
-|-------|-------------|
-| `ghcr.io/cirisai/cirisbench:agentbeats` | Green agent (benchmark evaluator) |
-| `ghcr.io/cirisai/cirisbench:mock-agent` | Purple agent (baseline for testing) |
+All images are automatically built and published via CI/CD to GitHub Container Registry:
+
+| Image | Tag | Description |
+|-------|-----|-------------|
+| `ghcr.io/cirisai/cirisbench` | `agentbeats`, `latest` | Main CIRISBench (CIRISNode + EthicsEngine) |
+| `ghcr.io/cirisai/cirisbench-ui` | `agentbeats`, `latest` | Web UI dashboard (Next.js) |
+| `ghcr.io/cirisai/cirisbench` | `mock-agent` | Heuristic baseline agent for testing |
+| `ghcr.io/cirisai/cirisbench` | `multi-provider` | Multi-LLM purple agent |
+| `ghcr.io/cirisai/cirisbench` | `eee-purple` | EEE reasoning pipeline agent |
+
+```bash
+# Pull all images
+docker pull ghcr.io/cirisai/cirisbench:agentbeats
+docker pull ghcr.io/cirisai/cirisbench-ui:agentbeats
+docker pull ghcr.io/cirisai/cirisbench:mock-agent
+```
 
 ### Mock Purple Agent
 

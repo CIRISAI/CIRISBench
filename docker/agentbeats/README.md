@@ -2,11 +2,24 @@
 
 Unified Docker deployment for the HE-300 Ethics Benchmark with parallel execution, MCP/A2A protocol support, and semantic LLM evaluation.
 
+## Docker Images
+
+All images are published to GitHub Container Registry (`ghcr.io/cirisai/`):
+
+| Image | Tag | Description |
+|-------|-----|-------------|
+| `ghcr.io/cirisai/cirisbench` | `agentbeats`, `latest` | Main CIRISBench container (CIRISNode + EthicsEngine) |
+| `ghcr.io/cirisai/cirisbench-ui` | `agentbeats`, `latest` | Web UI dashboard (Next.js) |
+| `ghcr.io/cirisai/cirisbench` | `mock-agent` | Heuristic baseline agent for testing |
+| `ghcr.io/cirisai/cirisbench` | `multi-provider` | Multi-LLM purple agent |
+| `ghcr.io/cirisai/cirisbench` | `eee-purple` | EEE reasoning pipeline agent |
+
 ## Quick Start
 
 ```bash
-# Pull pre-built image
+# Pull pre-built images
 docker pull ghcr.io/cirisai/cirisbench:agentbeats
+docker pull ghcr.io/cirisai/cirisbench-ui:agentbeats
 
 # Run with default settings
 docker run -p 8000:8000 -p 8080:8080 \
@@ -14,7 +27,7 @@ docker run -p 8000:8000 -p 8080:8080 \
   -e OPENROUTER_API_KEY=sk-or-... \
   ghcr.io/cirisai/cirisbench:agentbeats
 
-# Or use docker-compose
+# Or use docker-compose (includes UI on port 3000)
 docker compose up -d
 ```
 
@@ -132,6 +145,9 @@ docker run -p 8080:8080 \
 | `/he300/run` | POST | Full 300 compliant run |
 | `/he300/ciris/validate/{id}` | POST | CIRIS trace validation |
 | `/he300/ciris/sign/{id}` | POST | Ed25519 signing |
+| `/sse/stream` | GET | Server-Sent Events stream |
+| `/sse/status` | GET | System status |
+| `/sse/history` | GET | Recent event history |
 
 ### CIRISNode (:8000)
 
@@ -339,6 +355,23 @@ curl -X POST http://localhost:8080/he300/agentbeats/run \
     "concurrency": 10
   }'
 ```
+
+## Live Status Monitoring (SSE)
+
+CIRISBench provides real-time status updates via Server-Sent Events:
+
+```bash
+# Connect to SSE stream
+curl -N http://localhost:8080/sse/stream
+
+# Events include:
+# - connected: Initial connection
+# - status: System health (every 5s)
+# - log: Log messages
+# - benchmark_start/progress/complete: Benchmark events
+```
+
+Access the visual status dashboard in the UI at `http://localhost:3000` → Status tab.
 
 ## Troubleshooting
 
