@@ -4,8 +4,9 @@
 
 The HE-300 Web Interface provides a comprehensive dashboard for:
 - **Model Management**: Load, list, and delete Ollama models
-- **Benchmark Running**: Execute HE-300 ethics benchmarks
-- **Report Generation**: Create signed static reports for GitHub Pages
+- **Benchmark Running**: Execute HE-300 ethics benchmarks with three agent types
+- **Report Generation**: Create signed static reports with dual evaluation results
+- **Agent Identity**: View purple agent A2A identity via agent cards
 
 ## Accessing the Interface
 
@@ -31,6 +32,57 @@ http://<server-ip>:3000/he300
 ---
 
 ## Features
+
+### Agent Demo Tabs
+
+The HE-300 interface provides **three agent evaluation tabs**:
+
+| Tab | Agent Type | Container | Description |
+|-----|------------|-----------|-------------|
+| **Base LLM** | Direct API | None | Raw LLM evaluation without reasoning pipeline |
+| **EEE Purple** | EEE Pipeline | `eee-purple-agent:9000` | Full reasoning pipeline with ethical evaluation |
+| **CIRIS Agent** | H3ERE Pipeline | `ciris-benchmark:9001` | CIRIS agent with hierarchical reasoning |
+
+Each tab allows you to:
+- Select from multiple LLM models (Llama, GPT-4, Claude)
+- Configure identity profiles and ethical guidance
+- Run benchmarks with real Hendrycks Ethics dataset scenarios
+- View dual evaluation results (heuristic + semantic)
+
+---
+
+### Dual Evaluation System
+
+Every scenario is evaluated using **two methods**:
+
+| Method | Description | Speed |
+|--------|-------------|-------|
+| **Heuristic** | Pattern/keyword-based classification | Fast |
+| **Semantic** | LLM-based semantic understanding | Accurate |
+
+Results show:
+- Individual heuristic and semantic classifications
+- Confidence scores for each method
+- Agreement status (with warning when methods disagree)
+- Final combined prediction
+
+---
+
+### Agent Card Identity (A2A Protocol)
+
+When benchmarking purple agents via A2A protocol, the system fetches the agent's identity from their `.well-known/agent.json` endpoint:
+
+| Field | Description |
+|-------|-------------|
+| **Agent Card Name** | Official agent name from A2A card |
+| **Version** | Agent version |
+| **Provider** | Organization/provider name |
+| **DID** | Decentralized Identifier (if available) |
+| **Skills** | Agent capabilities |
+
+This identity is displayed as a **pink badge** in report headers and the configuration panel.
+
+---
 
 ### 1. Model Management Tab
 
@@ -103,13 +155,28 @@ http://<server-ip>:3000/he300
 | Format | Best For | Features |
 |--------|----------|----------|
 | Markdown | Jekyll/GitHub Pages | YAML frontmatter, expandable sections |
-| HTML | Standalone viewing | Styled, charts, self-contained |
+| HTML | Standalone viewing | Styled, charts, export to CSV/XML/PDF |
 | JSON | Machine processing | Structured data, API integration |
 
+**Report Contents:**
+
+Each report includes:
+- **Agent Identity**: Name, type, model, protocol, URL
+- **Agent Card** (if A2A): Official name, version, provider, DID
+- **Dual Evaluation**: Heuristic and semantic results per scenario
+- **Category Breakdown**: Accuracy by ethics category
+- **Scenario Details**: UID, prompt, question type, evaluations
+
 **Report Options:**
-- **Include Scenarios**: Add individual test results
+- **Include Scenarios**: Add individual test results with dual evaluation
 - **Sign Report**: Add cryptographic signature for integrity
 - **Jekyll Frontmatter**: Add YAML header for static sites
+
+**Export Capabilities (HTML reports):**
+- JSON export with full evaluation data
+- CSV export for spreadsheet analysis
+- XML export for data interchange
+- PDF export via print dialog
 
 **Generating a Report:**
 1. Run a benchmark first
@@ -294,5 +361,18 @@ Ensure you have run a benchmark first. Reports are generated from the most recen
 
 ---
 
-*Document Version: 1.0*
-*Last Updated: 2026-01-03*
+## What's New
+
+### v1.1 (2026-01-31)
+- **Three Agent Tabs**: Base LLM, EEE Purple, CIRIS Agent demos
+- **Dual Evaluation**: Heuristic + semantic classification for every scenario
+- **Agent Card Identity**: A2A protocol identity fetching for purple agents
+- **Enhanced Reports**: Agent metadata, dual eval results, export options
+
+### v1.0 (2026-01-03)
+- Initial release with benchmark running and report generation
+
+---
+
+*Document Version: 1.1*
+*Last Updated: 2026-01-31*

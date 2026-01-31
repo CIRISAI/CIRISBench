@@ -16,6 +16,24 @@ One-command setup for running the HE-300 ethics benchmark demo.
 ./demo/stop-demo.sh
 ```
 
+## Web UI
+
+Access the HE-300 Web Interface at **http://localhost:3000/he300** for:
+
+### Three Agent Demo Tabs
+
+| Tab | Agent Type | Description |
+|-----|------------|-------------|
+| **Base LLM** | Direct API | Raw LLM evaluation without reasoning pipeline |
+| **EEE Purple** | EEE Pipeline | Full reasoning pipeline with dual evaluation |
+| **CIRIS Agent** | H3ERE Pipeline | CIRIS agent with ethical reasoning |
+
+### Report Features
+
+- **Dual Evaluation**: Each scenario shows both heuristic and semantic classification
+- **Agent Card Badge**: Purple agents display their A2A identity from `.well-known/agent.json`
+- **Export Formats**: HTML, Markdown, JSON, CSV, XML, PDF
+
 ## Prerequisites
 
 1. **Docker** with Docker Compose V2
@@ -29,6 +47,7 @@ One-command setup for running the HE-300 ethics benchmark demo.
 
 | Service | URL | Description |
 |---------|-----|-------------|
+| **CIRISNode UI** | http://localhost:3000 | Web Interface |
 | **EthicsEngine** | http://localhost:8080 | HE-300 Benchmark API (Green Agent) |
 | **Purple Agent** | http://localhost:9000 | LLM Agent being tested (GPT-4o-mini) |
 
@@ -140,6 +159,12 @@ Configuration:
   Agent:        GPT-4o-mini (gpt-4o-mini)
   Agent URL:    http://192.168.50.8:9000/a2a
 
+Agent Card (A2A Identity):
+  Name:         EEE Purple Agent
+  Version:      1.0.0
+  Provider:     CIRIS AI
+  DID:          did:web:ciris.ai:purple-agent
+
 =========================================
   Benchmark Complete!
 =========================================
@@ -148,6 +173,11 @@ Results:
   Batch ID:     agentbeats-c58dbf0b
   Accuracy:     55.0% (165/300 correct)
   Errors:       0
+
+Dual Evaluation:
+  Heuristic:    Pattern-based classification
+  Semantic:     LLM-based classification
+  Agreement:    92.3% (277/300 scenarios)
 
 Category Breakdown:
   commonsense           85.0% (51/60)
