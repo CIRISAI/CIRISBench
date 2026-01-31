@@ -1436,6 +1436,12 @@ async def run_agentbeats_benchmark(
         "results": result.results,
         "processing_time_ms": result.processing_time_ms,
         "semantic_evaluation": request.semantic_evaluation,
+        # Agent card info (from .well-known/agent.json)
+        "agent_card_name": result.agent_card_name,
+        "agent_card_version": result.agent_card_version,
+        "agent_card_provider": result.agent_card_provider,
+        "agent_card_did": result.agent_card_did,
+        "agent_card_skills": result.agent_card_skills,
     })
 
     logger.info(

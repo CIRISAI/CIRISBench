@@ -84,6 +84,12 @@ class BenchmarkRunSummary(BaseModel):
     agent_type: str = ""  # "base_llm", "eee_purple", "ciris_agent"
     protocol: str = ""  # "a2a", "mcp", or "" for direct API
     agent_url: str = ""  # URL of the agent endpoint
+    # Agent card info (from .well-known/agent.json)
+    agent_card_name: str = ""  # Official agent name from card
+    agent_card_version: str = ""  # Agent version
+    agent_card_provider: str = ""  # Provider/organization
+    agent_card_did: Optional[str] = None  # Decentralized Identifier
+    agent_card_skills: List[str] = Field(default_factory=list)  # Agent capabilities
 
 
 class EvaluationDetailReport(BaseModel):
@@ -483,6 +489,11 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         "agent_type": summary.agent_type,
         "protocol": summary.protocol,
         "agent_url": summary.agent_url,
+        "agent_card_name": summary.agent_card_name,
+        "agent_card_version": summary.agent_card_version,
+        "agent_card_provider": summary.agent_card_provider,
+        "agent_card_did": summary.agent_card_did,
+        "agent_card_skills": summary.agent_card_skills,
         "identity_id": summary.identity_id,
         "guidance_id": summary.guidance_id,
         "total_scenarios": summary.total_scenarios,
@@ -571,6 +582,18 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             background: rgba(251, 191, 36, 0.3);
             border: 1px solid rgba(251, 191, 36, 0.5);
             font-size: 0.75rem;
+            padding: 0.35rem 0.75rem;
+        }}
+        .agent-card-badge {{
+            background: rgba(236, 72, 153, 0.3);
+            border: 2px solid rgba(236, 72, 153, 0.6);
+            font-size: 0.85rem;
+        }}
+        .did-badge {{
+            background: rgba(99, 102, 241, 0.3);
+            border: 1px solid rgba(99, 102, 241, 0.5);
+            font-family: monospace;
+            font-size: 0.7rem;
             padding: 0.35rem 0.75rem;
         }}
         .header .meta {{ opacity: 0.9; font-size: 0.9rem; }}
@@ -775,6 +798,8 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                 {f'<span class="agent-badge agent-{summary.agent_type}">{summary.agent_name or summary.agent_type.replace("_", " ").title() or "Direct LLM"}</span>' if summary.agent_type or summary.agent_name else '<span class="agent-badge">Direct LLM Evaluation</span>'}
                 <span class="model-badge">&#129302; {summary.model_name}</span>
                 {f'<span class="protocol-badge">{summary.protocol.upper()}</span>' if summary.protocol else ''}
+                {f'<span class="agent-card-badge" title="Agent Card: {summary.agent_card_name} v{summary.agent_card_version}">&#127380; {summary.agent_card_name}</span>' if summary.agent_card_name else ''}
+                {f'<span class="did-badge" title="Decentralized Identifier">{summary.agent_card_did[:20]}...</span>' if summary.agent_card_did and len(summary.agent_card_did) > 20 else (f'<span class="did-badge" title="Decentralized Identifier">{summary.agent_card_did}</span>' if summary.agent_card_did else '')}
             </div>
             <div class="meta">
                 <strong>Batch:</strong> {summary.batch_id} |
@@ -852,6 +877,16 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                         <tr><td><strong>Protocol</strong></td><td>{summary.protocol.upper() if summary.protocol else 'Direct API'}</td></tr>
                         {f'<tr><td><strong>Agent URL</strong></td><td><code style="font-size: 0.8rem;">{summary.agent_url}</code></td></tr>' if summary.agent_url else ''}
                     </table>
+                    {f"""
+                    <h4 style="color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; margin: 1rem 0 0.5rem;">Agent Card (A2A Identity)</h4>
+                    <table>
+                        <tr><td><strong>Card Name</strong></td><td><span style="color: #ec4899;">{summary.agent_card_name}</span></td></tr>
+                        <tr><td><strong>Version</strong></td><td>{summary.agent_card_version}</td></tr>
+                        <tr><td><strong>Provider</strong></td><td>{summary.agent_card_provider}</td></tr>
+                        {f'<tr><td><strong>DID</strong></td><td><code style="font-size: 0.75rem;">{summary.agent_card_did}</code></td></tr>' if summary.agent_card_did else ''}
+                        {f'<tr><td><strong>Skills</strong></td><td>{", ".join(summary.agent_card_skills[:3])}{" ..." if len(summary.agent_card_skills) > 3 else ""}</td></tr>' if summary.agent_card_skills else ''}
+                    </table>
+                    """ if summary.agent_card_name else ''}
                 </div>
                 <div>
                     <h4 style="color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 0.5rem;">Evaluation Settings</h4>

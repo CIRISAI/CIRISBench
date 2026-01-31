@@ -55,6 +55,20 @@ class ProtocolType(Enum):
 
 
 @dataclass
+class AgentCard:
+    """Agent card data from A2A .well-known/agent.json endpoint."""
+    name: str = ""
+    description: str = ""
+    version: str = ""
+    url: str = ""
+    provider_name: str = ""
+    provider_url: str = ""
+    did: Optional[str] = None  # Decentralized Identifier if available
+    skills: List[str] = field(default_factory=list)
+    raw_card: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class AgentConfig:
     """Configuration for connecting to a purple agent."""
     url: str
@@ -142,6 +156,78 @@ class BatchResult(BaseModel):
     categories: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     results: List[Dict[str, Any]] = Field(default_factory=list)
     processing_time_ms: float = 0.0
+    # Agent card info (fetched from .well-known/agent.json)
+    agent_card_name: str = ""
+    agent_card_version: str = ""
+    agent_card_provider: str = ""
+    agent_card_did: Optional[str] = None
+    agent_card_skills: List[str] = Field(default_factory=list)
+
+
+async def fetch_agent_card(
+    agent_url: str,
+    verify_ssl: bool = True,
+    timeout: float = 10.0,
+) -> Optional[AgentCard]:
+    """
+    Fetch agent card from A2A .well-known/agent.json endpoint.
+
+    Per A2A spec, agents serve their identity at /.well-known/agent.json
+    This provides the official agent name, version, DID, and capabilities.
+
+    Args:
+        agent_url: Base URL of the agent (e.g., https://agent.example.com/a2a)
+        verify_ssl: Whether to verify SSL certificates
+        timeout: Request timeout in seconds
+
+    Returns:
+        AgentCard with agent identity info, or None if unavailable
+    """
+    try:
+        # Parse base URL to construct .well-known path
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(agent_url)
+        # Construct .well-known URL at the root
+        well_known_url = urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            "/.well-known/agent.json",
+            "", "", ""
+        ))
+
+        ssl_context = ssl.create_default_context(cafile=certifi.where()) if verify_ssl else False
+
+        async with httpx.AsyncClient(verify=ssl_context, timeout=timeout) as client:
+            response = await client.get(well_known_url)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Extract provider info
+                provider = data.get("provider", {})
+
+                # Extract skill names
+                skills = [s.get("name", s.get("id", "")) for s in data.get("skills", [])]
+
+                return AgentCard(
+                    name=data.get("name", ""),
+                    description=data.get("description", ""),
+                    version=data.get("version", ""),
+                    url=data.get("url", agent_url),
+                    provider_name=provider.get("organization", provider.get("name", "")),
+                    provider_url=provider.get("url", ""),
+                    did=data.get("did"),  # DID if provided in card
+                    skills=skills,
+                    raw_card=data,
+                )
+            else:
+                logger.debug(f"Agent card not available at {well_known_url}: HTTP {response.status_code}")
+                return None
+
+    except Exception as e:
+        logger.debug(f"Failed to fetch agent card from {agent_url}: {e}")
+        return None
 
 
 def create_ssl_context(agent_config: AgentConfig) -> ssl.SSLContext:
@@ -477,6 +563,20 @@ async def run_batch(
             results=[{"error": "No agent URL provided"}],
         )
 
+    # Fetch agent card for identity info (non-blocking, optional)
+    agent_card = await fetch_agent_card(
+        agent_url=agent_config.url,
+        verify_ssl=agent_config.verify_ssl,
+        timeout=10.0,
+    )
+    if agent_card:
+        logger.info(
+            f"Fetched agent card for {agent_card.name} v{agent_card.version} "
+            f"(provider: {agent_card.provider_name})"
+        )
+    else:
+        logger.debug(f"Agent card not available at {agent_config.url}")
+
     # Setup SSL context
     ssl_context = create_ssl_context(agent_config) if agent_config.verify_ssl else False
 
@@ -611,6 +711,12 @@ async def run_batch(
             for r in processed_results
         ],
         processing_time_ms=processing_time_ms,
+        # Agent card info (from .well-known/agent.json)
+        agent_card_name=agent_card.name if agent_card else "",
+        agent_card_version=agent_card.version if agent_card else "",
+        agent_card_provider=agent_card.provider_name if agent_card else "",
+        agent_card_did=agent_card.did if agent_card else None,
+        agent_card_skills=agent_card.skills if agent_card else [],
     )
 
 
