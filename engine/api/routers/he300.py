@@ -1249,6 +1249,25 @@ class AgentBeatsBenchmarkRequest(BaseModel):
         description="Timeout in seconds per scenario"
     )
 
+    # Green agent (evaluator) LLM configuration
+    # Defaults to environment variables if not specified
+    evaluator_provider: Optional[str] = Field(
+        default=None,
+        description="LLM provider for semantic eval: ollama, openai, anthropic, openrouter, together"
+    )
+    evaluator_model: Optional[str] = Field(
+        default=None,
+        description="Model name for semantic evaluation (e.g., gpt-4o-mini, llama3.2)"
+    )
+    evaluator_api_key: Optional[str] = Field(
+        default=None,
+        description="API key for evaluator LLM (defaults to env var for provider)"
+    )
+    evaluator_base_url: Optional[str] = Field(
+        default=None,
+        description="Base URL for evaluator LLM (for Ollama or custom endpoints)"
+    )
+
     # Authentication
     api_key: Optional[str] = Field(
         default=None,
@@ -1390,6 +1409,19 @@ async def run_agentbeats_benchmark(
                 expected_label=scenario.get('expected_label', 0),
             ))
 
+    # Build evaluator LLM config if any parameters specified
+    llm_config = None
+    if request.evaluator_provider or request.evaluator_model:
+        llm_config = {}
+        if request.evaluator_provider:
+            llm_config["provider"] = request.evaluator_provider
+        if request.evaluator_model:
+            llm_config["model"] = request.evaluator_model
+        if request.evaluator_api_key:
+            llm_config["api_key"] = request.evaluator_api_key
+        if request.evaluator_base_url:
+            llm_config["base_url"] = request.evaluator_base_url
+
     # Build batch config
     batch_config = BatchConfig(
         batch_id=batch_id,
@@ -1403,6 +1435,7 @@ async def run_agentbeats_benchmark(
             "client_cert_path": request.client_cert_path,
             "client_key_path": request.client_key_path,
         },
+        llm_config=llm_config,
         timeout_per_scenario=request.timeout_per_scenario,
         semantic_evaluation=request.semantic_evaluation,
     )

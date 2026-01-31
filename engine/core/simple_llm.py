@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class LLMConfig(BaseModel):
     """Simple LLM configuration."""
-    provider: Literal["ollama", "openai", "anthropic", "openrouter"] = "ollama"
+    provider: Literal["ollama", "openai", "anthropic", "openrouter", "together"] = "ollama"
     model: str = "llama3.2"
     base_url: str = "http://localhost:11434"
     api_key: Optional[str] = None
@@ -48,6 +48,13 @@ def get_llm_config() -> LLMConfig:
             model=os.environ.get("LLM_MODEL", "openai/gpt-4o-mini"),
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ.get("OPENROUTER_API_KEY"),
+        )
+    elif provider == "together":
+        return LLMConfig(
+            provider="together",
+            model=os.environ.get("LLM_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+            base_url="https://api.together.xyz/v1",
+            api_key=os.environ.get("TOGETHER_API_KEY"),
         )
     else:  # ollama
         return LLMConfig(
@@ -86,6 +93,9 @@ async def simple_llm_call(
         elif config.provider == "openrouter":
             # OpenRouter uses OpenAI-compatible API
             return await _openrouter_call(prompt, system_prompt, config)
+        elif config.provider == "together":
+            # Together uses OpenAI-compatible API
+            return await _together_call(prompt, system_prompt, config)
         elif config.provider == "anthropic":
             return await _anthropic_call(prompt, system_prompt, config)
         else:
@@ -182,6 +192,32 @@ async def _openrouter_call(prompt: str, system_prompt: Optional[str], config: LL
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://github.com/CIRISAI/CIRISBench",
                 "X-Title": "CIRISBench HE-300",
+            },
+            json={
+                "model": config.model,
+                "messages": messages,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens,
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+
+
+async def _together_call(prompt: str, system_prompt: Optional[str], config: LLMConfig) -> str:
+    """Direct Together API call (OpenAI-compatible)."""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            f"{config.base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {config.api_key}",
+                "Content-Type": "application/json",
             },
             json={
                 "model": config.model,
