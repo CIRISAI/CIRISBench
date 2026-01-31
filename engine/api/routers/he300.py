@@ -557,6 +557,11 @@ async def evaluate_batch(
         "guidance_id": request.guidance_id,
         "processing_time_ms": processing_time_ms,
         "model_name": request.model_name,
+        # Agent metadata for report generation
+        "agent_type": "base_llm",  # Direct LLM evaluation
+        "agent_name": "",
+        "protocol": "",
+        "agent_url": "",
     })
     
     return response_data
@@ -1416,7 +1421,8 @@ async def run_agentbeats_benchmark(
     store_trace(batch_id, {
         "batch_id": batch_id,
         "agent_name": request.agent_name,
-        "model": request.model,
+        "agent_type": "eee_purple",  # AgentBeats uses EEE Purple pipeline
+        "model_name": request.model,
         "agent_url": request.agent_url,
         "protocol": request.protocol,
         "concurrency": request.concurrency,

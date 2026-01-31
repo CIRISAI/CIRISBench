@@ -79,19 +79,39 @@ class BenchmarkRunSummary(BaseModel):
     started_at: str
     completed_at: str
     processing_time_ms: float
+    # Agent metadata for clear identification
+    agent_name: str = ""  # Name of the agent being tested
+    agent_type: str = ""  # "base_llm", "eee_purple", "ciris_agent"
+    protocol: str = ""  # "a2a", "mcp", or "" for direct API
+    agent_url: str = ""  # URL of the agent endpoint
+
+
+class EvaluationDetailReport(BaseModel):
+    """Evaluation detail for heuristic or semantic methods."""
+    classification: str = ""  # "ethical", "unethical", "unknown"
+    label: Optional[int] = None  # 0 = ethical, 1 = unethical
+    confidence: float = 0.0
+    method: str = ""  # "heuristic" or "semantic"
 
 
 class ScenarioDetail(BaseModel):
     """Individual scenario result for detailed reports."""
-    scenario_id: str
-    category: str
-    input_text: str
+    scenario_id: str  # UID for relating back to source dataset
+    category: str  # question type/category from dataset
+    input_text: str  # the scenario prompt text
     expected_label: Optional[int]
     predicted_label: Optional[int]
     model_response: str
     is_correct: bool
     latency_ms: float
     error: Optional[str] = None
+    trace_id: Optional[str] = None
+    trace_url: Optional[str] = None
+    # Dual evaluation results per HE-300 spec
+    heuristic_eval: Optional[EvaluationDetailReport] = None
+    semantic_eval: Optional[EvaluationDetailReport] = None
+    evaluations_agree: bool = True
+    disagreement_note: Optional[str] = None
 
 
 class ReportRequest(BaseModel):
@@ -386,7 +406,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         # Escape HTML in text content
         input_text_escaped = s.input_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
         response_escaped = s.model_response.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;') if s.model_response else ''
-        
+
         # Build trace link HTML if available
         trace_link_html = ''
         if s.trace_id and s.trace_url:
@@ -395,13 +415,35 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             trace_link_html = f'<span title="Trace ID: {s.trace_id}">&#128279;</span>'
         else:
             trace_link_html = '<span style="color: #ccc;">-</span>'
-        
+
+        # Build heuristic/semantic evaluation badges
+        heuristic_html = '-'
+        semantic_html = '-'
+        agree_icon = ''
+
+        if s.heuristic_eval:
+            h_class = 'correct' if s.heuristic_eval.classification == ('unethical' if s.expected_label == 1 else 'ethical') else 'incorrect'
+            heuristic_html = f'<span class="eval-badge {h_class}" title="Confidence: {s.heuristic_eval.confidence:.0%}">{s.heuristic_eval.classification.upper()}</span>'
+
+        if s.semantic_eval:
+            sem_class = 'correct' if s.semantic_eval.classification == ('unethical' if s.expected_label == 1 else 'ethical') else 'incorrect'
+            semantic_html = f'<span class="eval-badge {sem_class}" title="Confidence: {s.semantic_eval.confidence:.0%}">{s.semantic_eval.classification.upper()}</span>'
+
+        if s.heuristic_eval and s.semantic_eval:
+            if s.evaluations_agree:
+                agree_icon = '<span title="Evaluations agree" style="color: #22c55e;">&#10003;</span>'
+            else:
+                agree_icon = f'<span title="{s.disagreement_note or "Disagreement"}" style="color: #f59e0b;">&#9888;</span>'
+
         scenarios_rows.append(f'''
         <tr class="scenario-row {status_class}" data-category="{s.category}">
             <td><code>{s.scenario_id}</code></td>
             <td><span class="category-badge">{s.category}</span></td>
-            <td class="input-text" title="{input_text_escaped}">{input_text_escaped[:100]}{'...' if len(s.input_text) > 100 else ''}</td>
+            <td class="input-text" title="{input_text_escaped}">{input_text_escaped[:80]}{'...' if len(s.input_text) > 80 else ''}</td>
             <td><span class="label-badge expected">{expected}</span></td>
+            <td>{heuristic_html}</td>
+            <td>{semantic_html}</td>
+            <td>{agree_icon}</td>
             <td><span class="label-badge predicted {status_class}">{predicted}</span></td>
             <td><span class="status-icon">{("&#10003;" if s.is_correct else "&#10007;")}</span></td>
             <td>{s.latency_ms:.0f}ms</td>
@@ -424,13 +466,23 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         "model_response": s.model_response,
         "is_correct": s.is_correct,
         "latency_ms": s.latency_ms,
-        "error": s.error
+        "error": s.error,
+        "trace_id": s.trace_id,
+        "trace_url": s.trace_url,
+        "heuristic_eval": s.heuristic_eval.model_dump() if s.heuristic_eval else None,
+        "semantic_eval": s.semantic_eval.model_dump() if s.semantic_eval else None,
+        "evaluations_agree": s.evaluations_agree,
+        "disagreement_note": s.disagreement_note
     } for s in request.scenarios], indent=2)
     
     # Build summary JSON
     summary_json = json.dumps({
         "batch_id": summary.batch_id,
         "model_name": summary.model_name,
+        "agent_name": summary.agent_name,
+        "agent_type": summary.agent_type,
+        "protocol": summary.protocol,
+        "agent_url": summary.agent_url,
         "identity_id": summary.identity_id,
         "guidance_id": summary.guidance_id,
         "total_scenarios": summary.total_scenarios,
@@ -487,6 +539,40 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             border-radius: 1rem;
         }}
         .header h1 {{ font-size: 2rem; margin-bottom: 0.5rem; }}
+        .header .agent-info {{
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 0.75rem 0;
+        }}
+        .agent-badge, .model-badge, .protocol-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }}
+        .agent-badge {{
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.4);
+        }}
+        .agent-badge.agent-base_llm {{ background: rgba(34, 197, 94, 0.3); border-color: rgba(34, 197, 94, 0.6); }}
+        .agent-badge.agent-eee_purple {{ background: rgba(168, 85, 247, 0.3); border-color: rgba(168, 85, 247, 0.6); }}
+        .agent-badge.agent-ciris_agent {{ background: rgba(59, 130, 246, 0.3); border-color: rgba(59, 130, 246, 0.6); }}
+        .model-badge {{
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+        }}
+        .protocol-badge {{
+            background: rgba(251, 191, 36, 0.3);
+            border: 1px solid rgba(251, 191, 36, 0.5);
+            font-size: 0.75rem;
+            padding: 0.35rem 0.75rem;
+        }}
         .header .meta {{ opacity: 0.9; font-size: 0.9rem; }}
         .export-bar {{
             display: flex;
@@ -559,6 +645,17 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         .label-badge.predicted.incorrect {{ background: #fee2e2; color: #991b1b; }}
         .category-badge {{ background: #f3e8ff; color: #7c3aed; }}
         .status-icon {{ font-size: 1.2rem; }}
+        .eval-badge {{
+            display: inline-block;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }}
+        .eval-badge.correct {{ background: #dcfce7; color: #166534; }}
+        .eval-badge.incorrect {{ background: #fee2e2; color: #991b1b; }}
+        .eval-badge.unknown {{ background: #f3f4f6; color: #6b7280; }}
         .scenario-row.correct {{ background: #f0fdf4; }}
         .scenario-row.incorrect {{ background: #fef2f2; }}
         .scenario-row:hover {{ background: #f1f5f9; }}
@@ -674,10 +771,15 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     <div class="container">
         <div class="header">
             <h1>&#128300; HE-300 Ethics Benchmark Report</h1>
+            <div class="agent-info">
+                {f'<span class="agent-badge agent-{summary.agent_type}">{summary.agent_name or summary.agent_type.replace("_", " ").title() or "Direct LLM"}</span>' if summary.agent_type or summary.agent_name else '<span class="agent-badge">Direct LLM Evaluation</span>'}
+                <span class="model-badge">&#129302; {summary.model_name}</span>
+                {f'<span class="protocol-badge">{summary.protocol.upper()}</span>' if summary.protocol else ''}
+            </div>
             <div class="meta">
                 <strong>Batch:</strong> {summary.batch_id} |
-                <strong>Model:</strong> {summary.model_name} |
                 <strong>Generated:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+                {f' | <strong>Agent URL:</strong> {summary.agent_url}' if summary.agent_url else ''}
             </div>
             <div class="export-bar">
                 <button onclick="exportJSON()">&#128190; Export JSON</button>
@@ -740,13 +842,28 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
 
         <div class="card" style="margin-top: 1rem;">
             <h2 style="margin-bottom: 1rem;">Configuration</h2>
-            <table>
-                <tr><td><strong>Identity</strong></td><td>{summary.identity_id}</td></tr>
-                <tr><td><strong>Guidance</strong></td><td>{summary.guidance_id}</td></tr>
-                <tr><td><strong>Started</strong></td><td>{summary.started_at}</td></tr>
-                <tr><td><strong>Completed</strong></td><td>{summary.completed_at}</td></tr>
-                <tr><td><strong>Processing Time</strong></td><td>{summary.processing_time_ms:.0f} ms</td></tr>
-            </table>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <h4 style="color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 0.5rem;">Agent Information</h4>
+                    <table>
+                        <tr><td><strong>Agent Name</strong></td><td>{summary.agent_name or 'N/A'}</td></tr>
+                        <tr><td><strong>Agent Type</strong></td><td>{summary.agent_type.replace('_', ' ').title() if summary.agent_type else 'Direct LLM'}</td></tr>
+                        <tr><td><strong>Model</strong></td><td>{summary.model_name}</td></tr>
+                        <tr><td><strong>Protocol</strong></td><td>{summary.protocol.upper() if summary.protocol else 'Direct API'}</td></tr>
+                        {f'<tr><td><strong>Agent URL</strong></td><td><code style="font-size: 0.8rem;">{summary.agent_url}</code></td></tr>' if summary.agent_url else ''}
+                    </table>
+                </div>
+                <div>
+                    <h4 style="color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; margin-bottom: 0.5rem;">Evaluation Settings</h4>
+                    <table>
+                        <tr><td><strong>Identity</strong></td><td>{summary.identity_id}</td></tr>
+                        <tr><td><strong>Guidance</strong></td><td>{summary.guidance_id}</td></tr>
+                        <tr><td><strong>Started</strong></td><td>{summary.started_at}</td></tr>
+                        <tr><td><strong>Completed</strong></td><td>{summary.completed_at}</td></tr>
+                        <tr><td><strong>Processing Time</strong></td><td>{summary.processing_time_ms:.0f} ms</td></tr>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Individual Scenario Results -->
@@ -771,11 +888,14 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                 <table id="scenariosTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>ID (UID)</th>
                             <th>Category</th>
-                            <th>Input Text</th>
+                            <th>Prompt</th>
                             <th>Ground Truth</th>
-                            <th>Model Prediction</th>
+                            <th>Heuristic</th>
+                            <th>Semantic</th>
+                            <th>Agree</th>
+                            <th>Final</th>
                             <th>Result</th>
                             <th>Latency</th>
                             <th>Trace</th>
@@ -831,30 +951,66 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         function showDetails(scenarioId) {{
             const s = scenariosMap.get(scenarioId);
             if (!s) return;
-            
+
             // Label mapping: 0 = ETHICAL, 1 = UNETHICAL (per Hendrycks Ethics dataset convention)
             const expected = s.expected_label === 1 ? 'UNETHICAL' : s.expected_label === 0 ? 'ETHICAL' : 'N/A';
             const predicted = s.predicted_label === 1 ? 'UNETHICAL' : s.predicted_label === 0 ? 'ETHICAL' : 'ERROR';
-            
+
+            // Format evaluation details
+            const formatEval = (evalData, evalName) => {{
+                if (!evalData) return `<span style="color: #9ca3af;">Not available</span>`;
+                const isCorrect = evalData.classification === (s.expected_label === 1 ? 'unethical' : 'ethical');
+                const badgeClass = isCorrect ? 'correct' : 'incorrect';
+                return `
+                    <span class="eval-badge ${{badgeClass}}">${{evalData.classification.toUpperCase()}}</span>
+                    <span style="color: #6b7280; font-size: 0.85rem; margin-left: 0.5rem;">
+                        Confidence: ${{(evalData.confidence * 100).toFixed(0)}}%
+                    </span>
+                `;
+            }};
+
             document.getElementById('modalBody').innerHTML = `
                 <div class="detail-row">
-                    <span class="detail-label">Scenario ID</span>
+                    <span class="detail-label">Scenario ID (UID)</span>
                     <span class="detail-value"><code>${{s.scenario_id}}</code></span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Category</span>
+                    <span class="detail-label">Question Type</span>
                     <span class="detail-value"><span class="category-badge">${{s.category}}</span></span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Input Text</span>
+                    <span class="detail-label">Prompt</span>
                     <span class="detail-value">${{s.input_text}}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Ground Truth (Dataset Label)</span>
+                    <span class="detail-label">Ground Truth</span>
                     <span class="detail-value"><span class="label-badge expected">${{expected}}</span></span>
                 </div>
+
+                <h4 style="margin: 1.5rem 0 0.75rem; color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dual Evaluation Results</h4>
+
                 <div class="detail-row">
-                    <span class="detail-label">Model Prediction</span>
+                    <span class="detail-label">Heuristic Eval</span>
+                    <span class="detail-value">${{formatEval(s.heuristic_eval, 'Heuristic')}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Semantic Eval</span>
+                    <span class="detail-value">${{formatEval(s.semantic_eval, 'Semantic')}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Evaluations Agree</span>
+                    <span class="detail-value">
+                        ${{s.evaluations_agree !== false
+                            ? '<span style="color: #22c55e;">&#10003; Yes</span>'
+                            : `<span style="color: #f59e0b;">&#9888; No - ${{s.disagreement_note || 'Methods disagree'}}</span>`
+                        }}
+                    </span>
+                </div>
+
+                <h4 style="margin: 1.5rem 0 0.75rem; color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Final Result</h4>
+
+                <div class="detail-row">
+                    <span class="detail-label">Final Prediction</span>
                     <span class="detail-value"><span class="label-badge predicted ${{s.is_correct ? 'correct' : 'incorrect'}}">${{predicted}}</span></span>
                 </div>
                 <div class="detail-row">

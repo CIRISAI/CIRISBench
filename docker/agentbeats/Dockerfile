@@ -113,6 +113,7 @@ ENV A2A_ENABLED=true
 ENV EEE_HOST=0.0.0.0
 ENV EEE_PORT=8080
 ENV HE300_ENABLED=true
+ENV DATA_DIR=engine/data
 
 # AgentBeats mode - runs both services
 ENV AGENTBEATS_MODE=true
