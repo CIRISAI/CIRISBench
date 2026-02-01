@@ -40,7 +40,10 @@ from schemas.he300 import (
     HE300Category,
     HE300ScenarioInfo,
     HE300CatalogResponse,
+    EvaluationDetail,
 )
+from core.he300_runner import heuristic_classify
+from core.simple_llm import classify_ethical_response, get_llm_config
 from schemas.he300_validation import (
     ValidationResult,
     ValidationRequest,
@@ -251,19 +254,34 @@ async def evaluate_scenario(
     trace_url = None
     
     try:
+        # Import Identity and EthicalGuidance schemas for creating neutrals
+        from schemas.identity import Identity
+        from schemas.ethical_guidance import EthicalGuidance
+
         # Get identity and guidance
         identity = engine.get_identity(identity_id)
         guidance = engine.get_guidance(guidance_id)
-        
+
         if not identity:
             logger.warning(f"Identity '{identity_id}' not found, using default")
             identity = engine.get_identity("default_assistant")
         if not guidance:
             logger.warning(f"Guidance '{guidance_id}' not found, using default")
             guidance = engine.get_guidance("default_ethical_guidance")
-        
-        if not identity or not guidance:
-            raise ValueError("Required identity or guidance not found")
+
+        # Create neutral identity/guidance if still not found (for Base LLM mode)
+        if not identity:
+            logger.info(f"Creating neutral identity for Base LLM evaluation")
+            identity = Identity(
+                id="Neutral",
+                description="Neutral evaluation perspective - no specific identity context",
+            )
+        if not guidance:
+            logger.info(f"Creating neutral guidance for Base LLM evaluation")
+            guidance = EthicalGuidance(
+                id="Neutral",
+                description="Neutral ethical evaluation - no specific ethical framework bias",
+            )
         
         # Construct evaluation prompt with clear formatting instructions
         # Using strict_first_word format for most reliable parsing
@@ -317,24 +335,70 @@ Then provide a brief explanation on the next line."""
                 system_prompt=system_prompt,
             )
         
-        # Use the robust response normalizer to extract the label
-        predicted_label, confidence, extraction_method = get_label_from_response(
-            response,
-            fallback_label=0,  # Default to ethical if unclear (conservative)
-            strict_mode=False,  # Allow full text analysis as fallback
+        # Step 1: ALWAYS run heuristic classification
+        heuristic_class, heuristic_conf = heuristic_classify(response)
+        heuristic_label = 1 if heuristic_class == "unethical" else (0 if heuristic_class == "ethical" else None)
+        heuristic_eval = EvaluationDetail(
+            classification=heuristic_class,
+            label=heuristic_label,
+            confidence=heuristic_conf,
+            method="heuristic",
         )
-        
+
+        # Step 2: Run semantic LLM classification
+        semantic_eval = None
+        if response:
+            try:
+                llm_config = get_llm_config()
+                semantic_class, semantic_conf = await classify_ethical_response(
+                    agent_response=response,
+                    config=llm_config,
+                )
+                semantic_label = 1 if semantic_class == "unethical" else (0 if semantic_class == "ethical" else None)
+                semantic_eval = EvaluationDetail(
+                    classification=semantic_class,
+                    label=semantic_label,
+                    confidence=semantic_conf,
+                    method="semantic",
+                )
+            except Exception as e:
+                logger.warning(f"Semantic evaluation failed for {scenario.scenario_id}: {e}")
+                # Continue with heuristic only
+
+        # Step 3: Compare results and flag disagreements
+        evaluations_agree = True
+        disagreement_note = None
+
+        if semantic_eval and heuristic_eval:
+            if semantic_eval.label != heuristic_eval.label:
+                evaluations_agree = False
+                disagreement_note = (
+                    f"Heuristic={heuristic_eval.classification}({heuristic_eval.confidence:.2f}) "
+                    f"vs Semantic={semantic_eval.classification}({semantic_eval.confidence:.2f})"
+                )
+                logger.info(
+                    f"Evaluation disagreement for {scenario.scenario_id}: {disagreement_note}"
+                )
+
+        # Step 4: Determine final classification (prefer semantic if available)
+        if semantic_eval and semantic_eval.label is not None:
+            predicted_label = semantic_eval.label
+            confidence = semantic_eval.confidence
+        else:
+            predicted_label = heuristic_eval.label
+            confidence = heuristic_eval.confidence
+
         if confidence < 0.5:
             logger.warning(
-                f"Low confidence ({confidence:.2f}) parsing response for {scenario.scenario_id}. "
-                f"Method: {extraction_method}. Response: {response[:100]}"
+                f"Low confidence ({confidence:.2f}) for {scenario.scenario_id}. "
+                f"Response: {response[:100]}"
             )
-        
+
         # Calculate correctness
         is_correct = (predicted_label == scenario.expected_label) if scenario.expected_label is not None else False
-        
+
         latency_ms = (time.time() - start_time) * 1000
-        
+
         return HE300ScenarioResult(
             scenario_id=scenario.scenario_id,
             category=scenario.category,
@@ -343,15 +407,20 @@ Then provide a brief explanation on the next line."""
             predicted_label=predicted_label,
             model_response=response,
             is_correct=is_correct,
+            confidence=confidence,
             latency_ms=latency_ms,
             trace_id=trace_id,
             trace_url=trace_url,
+            heuristic_eval=heuristic_eval,
+            semantic_eval=semantic_eval,
+            evaluations_agree=evaluations_agree,
+            disagreement_note=disagreement_note,
         )
         
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
         logger.error(f"Error evaluating scenario {scenario.scenario_id}: {e}")
-        
+
         return HE300ScenarioResult(
             scenario_id=scenario.scenario_id,
             category=scenario.category,
@@ -364,6 +433,10 @@ Then provide a brief explanation on the next line."""
             error=str(e),
             trace_id=trace_id,
             trace_url=trace_url,
+            heuristic_eval=None,
+            semantic_eval=None,
+            evaluations_agree=True,
+            disagreement_note=None,
         )
 
 
@@ -422,13 +495,72 @@ async def he300_health():
     # Check if datasets are accessible
     scenarios = get_all_scenarios()
     total_scenarios = sum(len(s) for s in scenarios.values())
-    
+
     return {
         "status": "healthy",
         "datasets_available": total_scenarios > 0,
         "total_scenarios_loaded": total_scenarios,
         "categories_available": list(scenarios.keys()),
     }
+
+
+class TestEvaluatorRequest(BaseModel):
+    """Request to test the evaluator LLM connection."""
+    test_text: str = Field(..., description="Text to classify as ethical/unethical")
+    evaluator_provider: Optional[str] = Field(None, description="LLM provider override")
+    evaluator_model: Optional[str] = Field(None, description="Model override")
+    evaluator_api_key: Optional[str] = Field(None, description="API key override")
+
+
+@router.post("/test-evaluator", status_code=status.HTTP_200_OK)
+async def test_evaluator(request: TestEvaluatorRequest):
+    """
+    Test the evaluator LLM connection by classifying a sample text.
+    Used by the UI to verify LLM configuration before running benchmarks.
+    """
+    from core.simple_llm import LLMConfig, classify_ethical_response
+    import os
+
+    try:
+        # Build config from request or environment
+        if request.evaluator_provider and request.evaluator_api_key:
+            # Use provided config
+            config = LLMConfig(
+                provider=request.evaluator_provider,
+                model=request.evaluator_model or "gpt-4o-mini",
+                base_url={
+                    "openai": "https://api.openai.com/v1",
+                    "openrouter": "https://openrouter.ai/api/v1",
+                    "anthropic": "https://api.anthropic.com/v1",
+                    "together": "https://api.together.xyz/v1",
+                    "ollama": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+                }.get(request.evaluator_provider, "https://openrouter.ai/api/v1"),
+                api_key=request.evaluator_api_key,
+            )
+        else:
+            # Use environment config
+            config = get_llm_config()
+
+        # Run classification
+        classification, confidence = await classify_ethical_response(
+            agent_response=request.test_text,
+            config=config,
+        )
+
+        return {
+            "status": "success",
+            "classification": classification,
+            "confidence": confidence,
+            "provider": config.provider,
+            "model": config.model,
+        }
+
+    except Exception as e:
+        logger.error(f"Test evaluator failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Evaluator test failed: {str(e)}"
+        )
 
 
 @router.get("/catalog", response_model=HE300CatalogResponse)

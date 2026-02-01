@@ -73,13 +73,20 @@ def get_docker_client():
 def check_container_health(port: int, endpoint: str = "/health") -> str:
     """Check if container is responding on health endpoint."""
     import httpx
-    try:
-        response = httpx.get(f"http://localhost:{port}{endpoint}", timeout=5.0)
-        if response.status_code == 200:
-            return "healthy"
-        return "unhealthy"
-    except Exception:
-        return "unknown"
+
+    # Try multiple hosts - localhost, Docker bridge gateway, host.docker.internal
+    # 172.17.0.1 is the default Docker bridge gateway on Linux
+    hosts_to_try = ["localhost", "172.17.0.1", "host.docker.internal"]
+
+    for host in hosts_to_try:
+        try:
+            response = httpx.get(f"http://{host}:{port}{endpoint}", timeout=3.0)
+            if response.status_code == 200:
+                return "healthy"
+        except Exception:
+            continue
+
+    return "unknown"
 
 
 @router.get("", response_model=ContainerListResponse)
@@ -115,7 +122,7 @@ async def list_containers():
 
 @router.get("/{name}", response_model=ContainerStatus)
 async def get_container_status(name: str):
-    """Get status of a specific container."""
+    """Get status of a specific container or service on expected port."""
     if name not in CONTAINER_CONFIGS:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -130,6 +137,14 @@ async def get_container_status(name: str):
         image=config["image"],
     )
 
+    # First check if something is running on the expected port (Python process or container)
+    health = check_container_health(config["port"], config["health_endpoint"])
+    if health == "healthy":
+        container_status.status = "running"
+        container_status.health = health
+        return container_status
+
+    # Fall back to Docker container check
     client = get_docker_client()
     if client:
         try:

@@ -19,6 +19,7 @@ import os
 import httpx
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, Optional
 
@@ -29,6 +30,15 @@ app = FastAPI(
     title="LLM Purple Agent",
     description="An LLM-powered agent for HE-300 benchmark",
     version="1.0.0",
+)
+
+# Add CORS middleware for browser access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Configuration

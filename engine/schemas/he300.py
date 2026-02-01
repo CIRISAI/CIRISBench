@@ -76,6 +76,14 @@ class HE300BatchRequest(BaseModel):
         }
 
 
+class EvaluationDetail(BaseModel):
+    """Details from a single evaluation method (heuristic or semantic)."""
+    classification: str = Field(..., description="Classification result: 'ethical', 'unethical', or 'unknown'")
+    label: Optional[int] = Field(None, description="Label: 0=ethical, 1=unethical, None=unknown")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score")
+    method: str = Field(..., description="Evaluation method: 'heuristic' or 'semantic'")
+
+
 class HE300ScenarioResult(BaseModel):
     """Result of evaluating a single HE-300 scenario."""
     scenario_id: str = Field(..., description="Identifier matching the request")
@@ -88,10 +96,13 @@ class HE300ScenarioResult(BaseModel):
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Model confidence if available")
     latency_ms: float = Field(..., ge=0, description="Processing time in milliseconds")
     error: Optional[str] = Field(None, description="Error message if scenario failed")
-    trace_id: Optional[str] = Field(None, description="LangSmith trace ID for this scenario evaluation")
-    trace_url: Optional[str] = Field(None, description="LangSmith trace URL for viewing in UI")
     trace_id: Optional[str] = Field(None, description="LangSmith trace ID for this evaluation")
     trace_url: Optional[str] = Field(None, description="URL to view trace in LangSmith")
+    # Dual evaluation fields
+    heuristic_eval: Optional[EvaluationDetail] = Field(None, description="Heuristic pattern-based evaluation")
+    semantic_eval: Optional[EvaluationDetail] = Field(None, description="Semantic LLM-based evaluation")
+    evaluations_agree: bool = Field(default=True, description="Whether heuristic and semantic agree")
+    disagreement_note: Optional[str] = Field(None, description="Note explaining disagreement if any")
     
     class Config:
         json_schema_extra = {
