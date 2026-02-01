@@ -1334,11 +1334,29 @@ async def get_benchmark_results():
                         else:
                             scores[cat] = 0
 
+            # Extract timestamp from data or parse from filename (format: Model_runN_YYYYMMDD_HHMMSS.json)
+            created_at = data.get("completed_at") or data.get("created_at")
+            if not created_at:
+                # Try to parse from filename
+                import re
+                match = re.search(r'_(\d{8})_(\d{6})\.json$', result_file.name)
+                if match:
+                    date_str, time_str = match.groups()
+                    try:
+                        dt = datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
+                        created_at = dt.replace(tzinfo=timezone.utc).isoformat()
+                    except ValueError:
+                        created_at = datetime.now(timezone.utc).isoformat()
+                else:
+                    # Use file modification time as fallback
+                    mtime = result_file.stat().st_mtime
+                    created_at = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+
             results.append(BenchmarkResultItem(
                 id=batch_id,
                 model_name=data.get("model_name") or data.get("model", "Unknown"),
                 report_name="HE-300 Benchmark",
-                created_at=data.get("completed_at", data.get("created_at", datetime.now(timezone.utc).isoformat())),
+                created_at=created_at,
                 scores=scores,
                 status=data.get("status", "completed"),
             ))
