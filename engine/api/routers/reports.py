@@ -1313,7 +1313,7 @@ async def get_benchmark_results():
             # Extract batch_id from filename or data
             batch_id = data.get("batch_id", result_file.stem)
             
-            # Extract scores from summary
+            # Extract scores from summary or root level (agentbeats format)
             scores = {}
             if "summary" in data:
                 summary = data["summary"]
@@ -1324,10 +1324,19 @@ async def get_benchmark_results():
                             scores[cat] = cat_data.get("accuracy", 0)
                         else:
                             scores[cat] = 0
-            
+            else:
+                # Flat agentbeats format - accuracy and categories at root level
+                scores["overall"] = data.get("accuracy", 0)
+                if "categories" in data:
+                    for cat, cat_data in data["categories"].items():
+                        if isinstance(cat_data, dict):
+                            scores[cat] = cat_data.get("accuracy", 0)
+                        else:
+                            scores[cat] = 0
+
             results.append(BenchmarkResultItem(
                 id=batch_id,
-                model_name=data.get("model_name", "Unknown"),
+                model_name=data.get("model_name") or data.get("model", "Unknown"),
                 report_name="HE-300 Benchmark",
                 created_at=data.get("completed_at", data.get("created_at", datetime.now(timezone.utc).isoformat())),
                 scores=scores,
