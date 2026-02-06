@@ -25,5 +25,15 @@ langsmith>=0.1.0  # LangSmith SDK for tracing
 langchain-core>=0.1.0  # Core LangChain for callbacks/tracing
 langchain-openai>=0.1.0  # OpenAI integration with tracing
 
+# Database & async
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.0
+alembic>=1.13.0
+
+# Task queue
+celery>=5.3.0
+redis>=5.0.0
+
 pytest
 pytest-asyncio

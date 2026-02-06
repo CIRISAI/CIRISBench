@@ -24,6 +24,9 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException, status, Depends, Request, Body, Query
 from pydantic import ValidationError, BaseModel, Field
 
+from engine.db.session import async_session_factory
+from engine.db import eval_service
+
 # Add project root to path for imports
 import sys
 project_root = Path(__file__).resolve().parents[2]
@@ -896,7 +899,7 @@ BENCHMARK_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
-    """Store trace data for later retrieval."""
+    """Store trace data for later retrieval (in-memory + disk + Postgres)."""
     _trace_storage[trace_id] = {
         **data,
         "stored_at": time.time(),
@@ -906,13 +909,13 @@ def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
         oldest = sorted(_trace_storage.keys(), key=lambda k: _trace_storage[k].get("stored_at", 0))[:50]
         for k in oldest:
             del _trace_storage[k]
-    
-    # Also persist to disk for the reports API
+
+    # Persist to disk for the reports API (backward compat)
     try:
         import json
         from datetime import datetime, timezone
         result_file = BENCHMARK_RESULTS_DIR / f"{data.get('batch_id', trace_id)}.json"
-        
+
         # Add timestamps and trace_id to the persisted data
         persist_data = {
             **data,
@@ -924,6 +927,136 @@ def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
         logger.info(f"Persisted benchmark result to {result_file}")
     except Exception as e:
         logger.warning(f"Failed to persist benchmark result: {e}")
+
+    # Persist to PostgreSQL (best-effort, non-blocking)
+    try:
+        asyncio.get_event_loop().create_task(_persist_to_postgres(trace_id, data))
+    except RuntimeError:
+        # No event loop (e.g. called from sync context) — skip Postgres write
+        logger.debug("No event loop for Postgres persistence, skipping")
+
+
+async def _persist_to_postgres(trace_id: str, data: Dict[str, Any]) -> None:
+    """Async helper: create + complete an evaluation in Postgres."""
+    try:
+        # Extract fields from the data dict, adapting to all 3 call-site shapes
+        summary = data.get("summary", {})
+        if isinstance(summary, dict):
+            accuracy = summary.get("accuracy", data.get("accuracy", 0.0))
+            total = summary.get("total", data.get("total", 0))
+            correct = summary.get("correct", data.get("correct", 0))
+            errors = summary.get("errors", data.get("errors", 0))
+            categories_raw = summary.get("categories", data.get("categories"))
+        else:
+            accuracy = data.get("accuracy", 0.0)
+            total = data.get("total", 0)
+            correct = data.get("correct", 0)
+            errors = data.get("errors", 0)
+            categories_raw = data.get("categories")
+
+        # Normalize categories to the FSD shape {name: {accuracy, correct, total}}
+        categories = _normalize_categories(categories_raw)
+
+        protocol = data.get("protocol", "direct") or "direct"
+        agent_name = data.get("agent_name") or data.get("agent_card_name") or ""
+        target_model = data.get("model_name", "")
+        target_provider = _provider_from_model(target_model)
+        seed = data.get("random_seed", data.get("seed", 42))
+        sample_size = data.get("sample_size", total)
+        concurrency = data.get("concurrency", 50)
+        processing_ms = int(data.get("processing_time_ms", data.get("processing_ms", 0)))
+
+        # Determine eval_type: if agent_url is set, it's a client eval
+        agent_url = data.get("agent_url", "")
+        eval_type = "client"  # default; frontier evals come from celery sweep
+        tenant_id = data.get("tenant_id", "system")
+        visibility = "private"
+
+        scenario_results = data.get("results")
+
+        async with async_session_factory() as session:
+            eval_id = await eval_service.create_evaluation(
+                session,
+                tenant_id=tenant_id,
+                eval_type=eval_type,
+                protocol=protocol,
+                seed=seed,
+                target_model=target_model,
+                target_provider=target_provider,
+                target_endpoint=agent_url or None,
+                agent_name=agent_name or None,
+                sample_size=sample_size,
+                concurrency=concurrency,
+                visibility=visibility,
+            )
+            await session.commit()
+
+            await eval_service.start_evaluation(session, eval_id)
+            await session.commit()
+
+            await eval_service.complete_evaluation(
+                session,
+                eval_id,
+                accuracy=accuracy,
+                total_scenarios=total,
+                correct=correct,
+                errors=errors,
+                categories=categories,
+                scenario_results=scenario_results,
+                processing_ms=processing_ms,
+                trace_id=trace_id,
+            )
+            await session.commit()
+
+        logger.info(f"Persisted evaluation {eval_id} to Postgres")
+    except Exception as e:
+        logger.warning(f"Failed to persist to Postgres (non-fatal): {e}")
+
+
+def _normalize_categories(raw: Any) -> Dict[str, Any]:
+    """Normalize category results to {name: {accuracy, correct, total}} shape."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        # Already the right shape? Check first value
+        first_val = next(iter(raw.values()), None)
+        if isinstance(first_val, dict) and "accuracy" in first_val:
+            return raw
+        # It's {name: {correct: N, total: M}} — add accuracy
+        result = {}
+        for name, stats in raw.items():
+            if isinstance(stats, dict):
+                t = stats.get("total", 0)
+                c = stats.get("correct", 0)
+                result[name] = {
+                    "accuracy": c / t if t > 0 else 0.0,
+                    "correct": c,
+                    "total": t,
+                }
+            else:
+                result[name] = {"accuracy": 0.0, "correct": 0, "total": 0}
+        return result
+    return {}
+
+
+def _provider_from_model(model_name: str) -> str:
+    """Best-effort provider extraction from model name."""
+    if not model_name:
+        return ""
+    lower = model_name.lower()
+    for prefix, provider in [
+        ("gpt", "openai"), ("o1", "openai"), ("o3", "openai"),
+        ("claude", "anthropic"),
+        ("gemini", "google"),
+        ("llama", "meta"),
+        ("deepseek", "deepseek"),
+        ("mistral", "mistral"),
+        ("grok", "xai"),
+        ("command", "cohere"),
+    ]:
+        if lower.startswith(prefix) or f"/{prefix}" in lower:
+            return provider
+    return ""
 
 
 def get_trace(trace_id: str) -> Optional[Dict[str, Any]]:

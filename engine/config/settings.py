@@ -60,6 +60,32 @@ class Settings(BaseSettings):
     log_dir: str = Field("logs", description="Directory for log files.")
     log_level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).")
 
+    # --- Database ---
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:password@db:5432/cirisnode",
+        validation_alias='DATABASE_URL_ASYNC',
+        description="Async PostgreSQL connection URL (for FastAPI endpoints)."
+    )
+    database_url_sync: str = Field(
+        default="postgresql+psycopg2://postgres:password@db:5432/cirisnode",
+        validation_alias='DATABASE_URL_SYNC',
+        description="Sync PostgreSQL connection URL (for Celery tasks)."
+    )
+
+    # --- Redis ---
+    redis_url: str = Field(
+        default="redis://redis:6379/0",
+        validation_alias='REDIS_URL',
+        description="Redis URL for Celery broker and cache invalidation."
+    )
+
+    # --- Frontier Sweep ---
+    frontier_sweep_enabled: bool = Field(
+        default=False,
+        validation_alias='FRONTIER_SWEEP_ENABLED',
+        description="Enable the Celery Beat frontier model sweep."
+    )
+
     # --- HE-300 Benchmark Settings ---
     he300_enabled: bool = Field(
         default=True,
