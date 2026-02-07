@@ -26,6 +26,7 @@ from pydantic import ValidationError, BaseModel, Field
 
 from engine.db.session import async_session_factory
 from engine.db import eval_service
+from api.dependencies import require_auth
 
 # Add project root to path for imports
 import sys
@@ -610,7 +611,7 @@ class TestEvaluatorRequest(BaseModel):
 
 
 @router.post("/test-evaluator", status_code=status.HTTP_200_OK)
-async def test_evaluator(request: TestEvaluatorRequest):
+async def test_evaluator(request: TestEvaluatorRequest, actor: str = Depends(require_auth)):
     """
     Test the evaluator LLM connection by classifying a sample text.
     Used by the UI to verify LLM configuration before running benchmarks.
@@ -698,6 +699,7 @@ async def list_scenarios(
 async def evaluate_batch(
     request: HE300BatchRequest = Body(...),
     engine: EthicsEngine = Depends(get_ethics_engine),
+    actor: str = Depends(require_auth),
 ):
     """
     Evaluate a batch of HE-300 scenarios.
@@ -1072,6 +1074,7 @@ def get_trace(trace_id: str) -> Optional[Dict[str, Any]]:
 async def run_he300_compliant(
     request: HE300CompliantRunRequest = Body(...),
     engine: EthicsEngine = Depends(get_ethics_engine),
+    actor: str = Depends(require_auth),
 ):
     """
     Execute a full HE-300 compliant benchmark run.
@@ -1375,6 +1378,7 @@ async def run_he300_compliant(
 @router.post("/validate", response_model=ValidationResult)
 async def validate_batch(
     request: ValidationRequest = Body(...),
+    actor: str = Depends(require_auth),
 ):
     """
     Validate a previous batch run against the HE-300 specification.
@@ -1541,7 +1545,7 @@ async def preview_sampling(
 # --- CIRIS Trace Validation Endpoints ---
 
 @router.post("/ciris/validate/{batch_id}")
-async def validate_batch_ciris(batch_id: str):
+async def validate_batch_ciris(batch_id: str, actor: str = Depends(require_auth)):
     """
     Validate a batch result against the CIRIS trace specification.
     
@@ -1598,7 +1602,7 @@ async def validate_batch_ciris(batch_id: str):
 
 
 @router.post("/ciris/sign/{batch_id}")
-async def sign_batch_ciris(batch_id: str):
+async def sign_batch_ciris(batch_id: str, actor: str = Depends(require_auth)):
     """
     Sign a batch result with Ed25519 for CIRIS compliance.
     
@@ -1839,6 +1843,7 @@ class AgentBeatsBenchmarkResponse(BaseModel):
 @router.post("/agentbeats/run", response_model=AgentBeatsBenchmarkResponse)
 async def run_agentbeats_benchmark(
     request: AgentBeatsBenchmarkRequest = Body(...),
+    actor: str = Depends(require_auth),
 ):
     """
     Run HE-300 benchmark against a purple agent with parallel execution.

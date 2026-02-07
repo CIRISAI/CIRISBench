@@ -35,5 +35,8 @@ alembic>=1.13.0
 celery>=5.3.0
 redis>=5.0.0
 
+# Auth
+PyJWT>=2.8.0
+
 pytest
 pytest-asyncio
