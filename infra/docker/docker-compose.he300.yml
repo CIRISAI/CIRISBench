@@ -128,6 +128,10 @@ services:
       - LLM_MODEL=${LLM_MODEL:-llama3.2}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Database & Redis for unified evaluation pipeline
+      - DATABASE_URL_ASYNC=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
+      - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - eee_data:/app/data
       - eee_config:/app/config
@@ -135,12 +139,72 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Celery Worker (frontier sweep + async evals)
+  # ---------------------------------------------------------------------------
+  engine-worker:
+    build:
+      context: ${EEE_PATH:-../submodules/ethicsengine}
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/ethicsengine-enterprise:${IMAGE_TAG:-latest}
+    container_name: he300-engine-worker
+    command: celery -A engine.celery_app worker -l ${LOG_LEVEL:-info} -c 2 -Q cirisbench
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL_ASYNC=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
+      - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - FRONTIER_SWEEP_ENABLED=${FRONTIER_SWEEP_ENABLED:-true}
+      # LLM
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - he300-network
+
+  # ---------------------------------------------------------------------------
+  # EthicsEngine Celery Beat (cron scheduler for frontier sweeps)
+  # ---------------------------------------------------------------------------
+  engine-beat:
+    build:
+      context: ${EEE_PATH:-../submodules/ethicsengine}
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_ORG:-rng-ops}/ethicsengine-enterprise:${IMAGE_TAG:-latest}
+    container_name: he300-engine-beat
+    command: celery -A engine.celery_app beat -l ${LOG_LEVEL:-info}
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - FRONTIER_SWEEP_ENABLED=${FRONTIER_SWEEP_ENABLED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - he300-network
@@ -157,6 +221,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-cirisnode}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s

@@ -136,6 +136,25 @@ async def _openai_call(prompt: str, system_prompt: Optional[str], config: LLMCon
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
+    # GPT-5+ and o-series models require max_completion_tokens instead of max_tokens
+    model_lower = config.model.lower()
+    use_new_tokens_param = any(
+        model_lower.startswith(p) for p in ("gpt-5", "o1", "o3", "o4")
+    )
+
+    body = {
+        "model": config.model,
+        "messages": messages,
+    }
+    if use_new_tokens_param:
+        # Reasoning models need extra tokens for internal reasoning (128+ tokens)
+        # Ensure at least 500 tokens so reasoning doesn't consume the entire budget
+        body["max_completion_tokens"] = max(config.max_tokens, 500)
+        # GPT-5+ only supports default temperature (1) — omit temperature param
+    else:
+        body["max_tokens"] = config.max_tokens
+        body["temperature"] = config.temperature
+
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             f"{config.base_url}/chat/completions",
@@ -143,12 +162,7 @@ async def _openai_call(prompt: str, system_prompt: Optional[str], config: LLMCon
                 "Authorization": f"Bearer {config.api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": config.model,
-                "messages": messages,
-                "temperature": config.temperature,
-                "max_tokens": config.max_tokens,
-            }
+            json=body,
         )
         response.raise_for_status()
         data = response.json()

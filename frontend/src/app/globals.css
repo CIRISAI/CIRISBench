@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0a0f;
+  --color-bg-card: #12121a;
+  --color-bg-card-hover: #1a1a25;
+  --color-bg-elevated: #1e1e2a;
+  --color-border: #2a2a3a;
+  --color-border-subtle: #1e1e2e;
+
+  --color-text: #e8e8f0;
+  --color-text-secondary: #8888a0;
+  --color-text-muted: #555570;
+
+  --color-accent: #6c5ce7;
+  --color-accent-hover: #7c6cf7;
+  --color-accent-subtle: rgba(108, 92, 231, 0.12);
+
+  --color-green: #00d68f;
+  --color-green-subtle: rgba(0, 214, 143, 0.12);
+  --color-red: #ff4757;
+  --color-red-subtle: rgba(255, 71, 87, 0.12);
+  --color-amber: #ffa502;
+  --color-amber-subtle: rgba(255, 165, 2, 0.12);
+
+  --color-gold: #ffd700;
+  --color-silver: #c0c0c0;
+  --color-bronze: #cd7f32;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Animated gradient for hero */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #6c5ce7, #00d68f, #6c5ce7);
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effect for score cards */
+.glow-green { box-shadow: 0 0 20px rgba(0, 214, 143, 0.15); }
+.glow-accent { box-shadow: 0 0 20px rgba(108, 92, 231, 0.15); }
+.glow-gold { box-shadow: 0 0 20px rgba(255, 215, 0, 0.15); }
+
+/* Table row hover */
+.score-row:hover {
+  background: var(--color-bg-card-hover);
+}
+
+/* Badge pill styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}

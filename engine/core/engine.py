@@ -385,8 +385,25 @@ class EthicsEngine:
         logger.debug(f"Generating evaluation response with Identity: {identity.id}, Guidance: {guidance.id}")
 
         if not AUTOGEN_AVAILABLE or not llm_config:
-            logger.error("Autogen/LLMConfig not available for evaluation generation.")
-            return "Error: LLM configuration unavailable."
+            # Fallback to simple_llm when autogen is not available
+            logger.warning("Autogen not available, falling back to simple_llm for evaluation.")
+            try:
+                from core.simple_llm import simple_llm_call, get_llm_config
+                llm_cfg = get_llm_config()
+                logger.info(f"simple_llm fallback: provider={llm_cfg.provider}, model={llm_cfg.model}, key_set={bool(llm_cfg.api_key)}")
+                sys_msg = system_prompt or "You are a helpful AI assistant."
+                if identity and identity.description:
+                    sys_msg += f" Context: {identity.description}"
+                result = await simple_llm_call(
+                    prompt=prompt,
+                    system_prompt=sys_msg,
+                    config=llm_cfg,
+                )
+                logger.info(f"simple_llm fallback result: [{result[:100]}]")
+                return result
+            except Exception as e:
+                logger.error(f"simple_llm fallback failed: {e}", exc_info=True)
+                return f"Error: LLM configuration unavailable and fallback failed: {e}"
 
         # --- Prepare System Message ---
         # Use provided system_prompt if given, otherwise build from identity/guidance

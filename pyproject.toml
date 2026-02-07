@@ -37,6 +37,12 @@ dependencies = [
     "cryptography>=41.0.0",
     "pandas>=2.1.0",
     "ujson>=5.9.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.13.0",
+    "celery>=5.3.0",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]

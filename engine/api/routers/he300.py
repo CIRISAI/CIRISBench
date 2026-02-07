@@ -24,6 +24,9 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException, status, Depends, Request, Body, Query
 from pydantic import ValidationError, BaseModel, Field
 
+from engine.db.session import async_session_factory
+from engine.db import eval_service
+
 # Add project root to path for imports
 import sys
 project_root = Path(__file__).resolve().parents[2]
@@ -870,6 +873,10 @@ class HE300CompliantRunRequest(BaseModel):
         default=False,
         description="Include detailed execution traces for each scenario"
     )
+    concurrency: int = Field(
+        default=0,
+        description="Max parallel scenario evaluations. 0 = use server default from settings."
+    )
 
 
 class HE300CompliantRunResponse(BaseModel):
@@ -896,7 +903,7 @@ BENCHMARK_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
-    """Store trace data for later retrieval."""
+    """Store trace data for later retrieval (in-memory + disk + Postgres)."""
     _trace_storage[trace_id] = {
         **data,
         "stored_at": time.time(),
@@ -906,13 +913,13 @@ def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
         oldest = sorted(_trace_storage.keys(), key=lambda k: _trace_storage[k].get("stored_at", 0))[:50]
         for k in oldest:
             del _trace_storage[k]
-    
-    # Also persist to disk for the reports API
+
+    # Persist to disk for the reports API (backward compat)
     try:
         import json
         from datetime import datetime, timezone
         result_file = BENCHMARK_RESULTS_DIR / f"{data.get('batch_id', trace_id)}.json"
-        
+
         # Add timestamps and trace_id to the persisted data
         persist_data = {
             **data,
@@ -924,6 +931,136 @@ def store_trace(trace_id: str, data: Dict[str, Any]) -> None:
         logger.info(f"Persisted benchmark result to {result_file}")
     except Exception as e:
         logger.warning(f"Failed to persist benchmark result: {e}")
+
+    # Persist to PostgreSQL (best-effort, non-blocking)
+    try:
+        asyncio.get_event_loop().create_task(_persist_to_postgres(trace_id, data))
+    except RuntimeError:
+        # No event loop (e.g. called from sync context) — skip Postgres write
+        logger.debug("No event loop for Postgres persistence, skipping")
+
+
+async def _persist_to_postgres(trace_id: str, data: Dict[str, Any]) -> None:
+    """Async helper: create + complete an evaluation in Postgres."""
+    try:
+        # Extract fields from the data dict, adapting to all 3 call-site shapes
+        summary = data.get("summary", {})
+        if isinstance(summary, dict):
+            accuracy = summary.get("accuracy", data.get("accuracy", 0.0))
+            total = summary.get("total", data.get("total", 0))
+            correct = summary.get("correct", data.get("correct", 0))
+            errors = summary.get("errors", data.get("errors", 0))
+            categories_raw = summary.get("categories", data.get("categories"))
+        else:
+            accuracy = data.get("accuracy", 0.0)
+            total = data.get("total", 0)
+            correct = data.get("correct", 0)
+            errors = data.get("errors", 0)
+            categories_raw = data.get("categories")
+
+        # Normalize categories to the FSD shape {name: {accuracy, correct, total}}
+        categories = _normalize_categories(categories_raw)
+
+        protocol = data.get("protocol", "direct") or "direct"
+        agent_name = data.get("agent_name") or data.get("agent_card_name") or ""
+        target_model = data.get("model_name", "")
+        target_provider = _provider_from_model(target_model)
+        seed = data.get("random_seed", data.get("seed", 42))
+        sample_size = data.get("sample_size", total)
+        concurrency = data.get("concurrency", 50)
+        processing_ms = int(data.get("processing_time_ms", data.get("processing_ms", 0)))
+
+        # Determine eval_type: if agent_url is set, it's a client eval
+        agent_url = data.get("agent_url", "")
+        eval_type = "client"  # default; frontier evals come from celery sweep
+        tenant_id = data.get("tenant_id", "system")
+        visibility = "private"
+
+        scenario_results = data.get("results")
+
+        async with async_session_factory() as session:
+            eval_id = await eval_service.create_evaluation(
+                session,
+                tenant_id=tenant_id,
+                eval_type=eval_type,
+                protocol=protocol,
+                seed=seed,
+                target_model=target_model,
+                target_provider=target_provider,
+                target_endpoint=agent_url or None,
+                agent_name=agent_name or None,
+                sample_size=sample_size,
+                concurrency=concurrency,
+                visibility=visibility,
+            )
+            await session.commit()
+
+            await eval_service.start_evaluation(session, eval_id)
+            await session.commit()
+
+            await eval_service.complete_evaluation(
+                session,
+                eval_id,
+                accuracy=accuracy,
+                total_scenarios=total,
+                correct=correct,
+                errors=errors,
+                categories=categories,
+                scenario_results=scenario_results,
+                processing_ms=processing_ms,
+                trace_id=trace_id,
+            )
+            await session.commit()
+
+        logger.info(f"Persisted evaluation {eval_id} to Postgres")
+    except Exception as e:
+        logger.warning(f"Failed to persist to Postgres (non-fatal): {e}")
+
+
+def _normalize_categories(raw: Any) -> Dict[str, Any]:
+    """Normalize category results to {name: {accuracy, correct, total}} shape."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        # Already the right shape? Check first value
+        first_val = next(iter(raw.values()), None)
+        if isinstance(first_val, dict) and "accuracy" in first_val:
+            return raw
+        # It's {name: {correct: N, total: M}} — add accuracy
+        result = {}
+        for name, stats in raw.items():
+            if isinstance(stats, dict):
+                t = stats.get("total", 0)
+                c = stats.get("correct", 0)
+                result[name] = {
+                    "accuracy": c / t if t > 0 else 0.0,
+                    "correct": c,
+                    "total": t,
+                }
+            else:
+                result[name] = {"accuracy": 0.0, "correct": 0, "total": 0}
+        return result
+    return {}
+
+
+def _provider_from_model(model_name: str) -> str:
+    """Best-effort provider extraction from model name."""
+    if not model_name:
+        return ""
+    lower = model_name.lower()
+    for prefix, provider in [
+        ("gpt", "openai"), ("o1", "openai"), ("o3", "openai"),
+        ("claude", "anthropic"),
+        ("gemini", "google"),
+        ("llama", "meta"),
+        ("deepseek", "deepseek"),
+        ("mistral", "mistral"),
+        ("grok", "xai"),
+        ("command", "cohere"),
+    ]:
+        if lower.startswith(prefix) or f"/{prefix}" in lower:
+            return provider
+    return ""
 
 
 def get_trace(trace_id: str) -> Optional[Dict[str, Any]]:
@@ -989,7 +1126,7 @@ async def run_he300_compliant(
         all_scenarios=scenarios_by_category,
         seed=seed,
         sample_size=300,
-        per_category=50,
+        per_category=150,
     )
     
     if len(sampled_scenarios) < 300:
@@ -1017,99 +1154,223 @@ async def run_he300_compliant(
             ))
     
     logger.info(f"Evaluating {len(scenario_requests)} scenarios for batch {request.batch_id}")
-    
-    # Evaluate all scenarios (300 total, in batches for efficiency)
-    results: List[HE300ScenarioResult] = []
-    for scenario in scenario_requests:
-        result = await evaluate_scenario(
-            scenario=scenario,
-            engine=engine,
+
+    # --- Determine concurrency ---
+    concurrency = request.concurrency if request.concurrency > 0 else settings.he300_concurrency
+    logger.info(f"Concurrency: {concurrency}")
+
+    # --- Create evaluation row BEFORE the run ---
+    eval_id = None
+    try:
+        async with async_session_factory() as session:
+            eval_id = await eval_service.create_evaluation(
+                session,
+                tenant_id="system",
+                eval_type="client",
+                protocol="direct",
+                seed=seed,
+                target_model=request.model_name,
+                sample_size=len(scenario_requests),
+                concurrency=concurrency,
+                visibility="private",
+                batch_config={"batch_id": request.batch_id, "identity_id": request.identity_id},
+            )
+            await session.commit()
+            await eval_service.start_evaluation(session, eval_id)
+            await session.commit()
+        logger.info(f"Created eval row {eval_id} for batch {request.batch_id}")
+    except Exception as e:
+        logger.warning(f"Failed to create eval row (non-fatal): {e}")
+        eval_id = None
+
+    # --- Parallel evaluation with incremental checkpointing ---
+    CHECKPOINT_INTERVAL = 25
+    semaphore = asyncio.Semaphore(concurrency)
+    checkpoint_lock = asyncio.Lock()
+    pending_checkpoint: List[dict] = []
+    results: List[Optional[HE300ScenarioResult]] = [None] * len(scenario_requests)
+
+    async def _flush_checkpoint() -> None:
+        """Persist pending results to Postgres."""
+        nonlocal pending_checkpoint
+        if not eval_id or not pending_checkpoint:
+            logger.debug(f"Skipping checkpoint: eval_id={eval_id}, pending={len(pending_checkpoint)}")
+            return
+        batch_to_persist = pending_checkpoint.copy()
+        pending_checkpoint.clear()
+        logger.info(f"Flushing checkpoint: {len(batch_to_persist)} results for eval {eval_id}")
+        try:
+            async with async_session_factory() as sess:
+                await eval_service.checkpoint_scenario_results(sess, eval_id, batch_to_persist)
+                await sess.commit()
+            logger.info(f"Checkpoint committed: {len(batch_to_persist)} results")
+        except Exception as exc:
+            logger.warning(f"Checkpoint failed (non-fatal): {exc}", exc_info=True)
+
+    async def evaluate_and_checkpoint(idx: int, scenario: HE300ScenarioRequest) -> None:
+        async with semaphore:
+            result = await evaluate_scenario(
+                scenario=scenario,
+                engine=engine,
+                identity_id=request.identity_id,
+                guidance_id=request.guidance_id,
+                batch_id=request.batch_id,
+                scenario_index=idx,
+            )
+        results[idx] = result
+
+        async with checkpoint_lock:
+            pending_checkpoint.append(result.model_dump(mode="json"))
+            if len(pending_checkpoint) >= CHECKPOINT_INTERVAL:
+                await _flush_checkpoint()
+
+    try:
+        tasks = [
+            evaluate_and_checkpoint(idx, scenario)
+            for idx, scenario in enumerate(scenario_requests)
+        ]
+        raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert any top-level exceptions into error results
+        for idx, item in enumerate(raw):
+            if isinstance(item, Exception):
+                logger.error(f"Scenario {scenario_requests[idx].scenario_id} raised: {item}")
+                results[idx] = HE300ScenarioResult(
+                    scenario_id=scenario_requests[idx].scenario_id,
+                    category=scenario_requests[idx].category,
+                    input_text=scenario_requests[idx].input_text,
+                    expected_label=scenario_requests[idx].expected_label,
+                    predicted_label=None,
+                    model_response="",
+                    is_correct=False,
+                    latency_ms=0.0,
+                    error=str(item),
+                    trace_id=f"{request.batch_id}-scenario-{idx}",
+                    heuristic_eval=None,
+                    semantic_eval=None,
+                    evaluations_agree=True,
+                    disagreement_note=None,
+                )
+
+        # Flush remaining checkpoint
+        async with checkpoint_lock:
+            await _flush_checkpoint()
+
+        # Filter None (shouldn't happen, but defensive)
+        final_results: List[HE300ScenarioResult] = [r for r in results if r is not None]
+
+        # Calculate summary
+        summary = calculate_summary(final_results)
+
+        # Determine status
+        if summary.errors == summary.total:
+            batch_status = "error"
+        elif summary.errors > 0:
+            batch_status = "partial"
+        else:
+            batch_status = "completed"
+
+        processing_time_ms = (time.time() - start_time) * 1000
+        logger.info(f"Processing time: {processing_time_ms:.0f}ms ({processing_time_ms/1000:.1f}s)")
+
+        # Create batch response
+        batch_response = HE300BatchResponse(
+            batch_id=request.batch_id,
+            status=batch_status,
+            results=final_results,
+            summary=summary,
             identity_id=request.identity_id,
             guidance_id=request.guidance_id,
+            processing_time_ms=processing_time_ms,
         )
-        results.append(result)
-    
-    # Calculate summary
-    summary = calculate_summary(results)
-    
-    # Determine status
-    if summary.errors == summary.total:
-        batch_status = "error"
-    elif summary.errors > 0:
-        batch_status = "partial"
-    else:
-        batch_status = "completed"
-    
-    processing_time_ms = (time.time() - start_time) * 1000
-    
-    # Create batch response
-    batch_response = HE300BatchResponse(
-        batch_id=request.batch_id,
-        status=batch_status,
-        results=results,
-        summary=summary,
-        identity_id=request.identity_id,
-        guidance_id=request.guidance_id,
-        processing_time_ms=processing_time_ms,
-    )
-    
-    # Validate if requested
-    validation_result = None
-    is_compliant = False
-    
-    if request.validate_after_run:
-        validator = HE300Validator(spec)
-        validation_result = validator.validate_batch_response(
-            response=batch_response,
-            seed=seed,
-            include_traces=request.include_scenario_traces,
+
+        # Validate if requested
+        validation_result = None
+        is_compliant = False
+
+        if request.validate_after_run:
+            validator = HE300Validator(spec)
+            validation_result = validator.validate_batch_response(
+                response=batch_response,
+                seed=seed,
+                include_traces=request.include_scenario_traces,
+            )
+            is_compliant = validation_result.is_he300_compliant
+            trace_id = validation_result.trace_id
+        else:
+            validator = HE300Validator(spec)
+            trace_obj = validator.generate_trace_id(
+                seed=seed,
+                scenario_ids=scenario_ids,
+                results=final_results,
+                summary=summary,
+            )
+            trace_id = trace_obj.trace_id
+            is_compliant = (
+                len(final_results) == 300
+                and summary.errors == 0
+                and batch_status == "completed"
+            )
+
+        # Store trace for later retrieval
+        store_trace(trace_id, {
+            "batch_id": request.batch_id,
+            "seed": seed,
+            "scenario_ids": scenario_ids,
+            "spec_version": spec.metadata.spec_version,
+            "spec_hash": spec.metadata.spec_hash,
+            "is_compliant": is_compliant,
+            "model_name": request.model_name,
+            "summary": summary.model_dump() if summary else None,
+            "validation_result": validation_result.model_dump() if validation_result else None,
+        })
+
+        # Complete eval row in Postgres
+        if eval_id:
+            try:
+                async with async_session_factory() as session:
+                    await eval_service.complete_evaluation(
+                        session,
+                        eval_id,
+                        accuracy=summary.accuracy,
+                        total_scenarios=summary.total,
+                        correct=summary.correct,
+                        errors=summary.errors,
+                        categories={k: v.model_dump() if hasattr(v, 'model_dump') else v for k, v in summary.by_category.items()} if summary.by_category else {},
+                        avg_latency_ms=summary.avg_latency_ms,
+                        processing_ms=int(processing_time_ms),
+                        trace_id=trace_id,
+                    )
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"Failed to complete eval row: {e}")
+
+        logger.info(
+            f"Completed HE-300 compliant run {request.batch_id}: "
+            f"{summary.correct}/{summary.total} correct ({summary.accuracy:.2%}), "
+            f"trace_id={trace_id}, compliant={is_compliant}"
         )
-        is_compliant = validation_result.is_he300_compliant
-        trace_id = validation_result.trace_id
-    else:
-        # Generate trace ID even if not validating
-        validator = HE300Validator(spec)
-        trace_obj = validator.generate_trace_id(
-            seed=seed,
-            scenario_ids=scenario_ids,
-            results=results,
-            summary=summary,
+
+        return HE300CompliantRunResponse(
+            batch_response=batch_response,
+            validation_result=validation_result,
+            trace_id=trace_id,
+            random_seed=seed,
+            spec_version=spec.metadata.spec_version,
+            spec_hash=spec.metadata.spec_hash,
+            is_he300_compliant=is_compliant,
         )
-        trace_id = trace_obj.trace_id
-        is_compliant = (
-            len(results) == 300 
-            and summary.errors == 0 
-            and batch_status == "completed"
-        )
-    
-    # Store trace for later retrieval
-    store_trace(trace_id, {
-        "batch_id": request.batch_id,
-        "seed": seed,
-        "scenario_ids": scenario_ids,
-        "spec_version": spec.metadata.spec_version,
-        "spec_hash": spec.metadata.spec_hash,
-        "is_compliant": is_compliant,
-        "model_name": request.model_name,
-        "summary": summary.model_dump() if summary else None,
-        "validation_result": validation_result.model_dump() if validation_result else None,
-    })
-    
-    logger.info(
-        f"Completed HE-300 compliant run {request.batch_id}: "
-        f"{summary.correct}/{summary.total} correct ({summary.accuracy:.2%}), "
-        f"trace_id={trace_id}, compliant={is_compliant}"
-    )
-    
-    return HE300CompliantRunResponse(
-        batch_response=batch_response,
-        validation_result=validation_result,
-        trace_id=trace_id,
-        random_seed=seed,
-        spec_version=spec.metadata.spec_version,
-        spec_hash=spec.metadata.spec_hash,
-        is_he300_compliant=is_compliant,
-    )
+
+    except Exception as e:
+        # Mark eval as failed on any unhandled exception
+        if eval_id:
+            try:
+                async with async_session_factory() as session:
+                    await eval_service.fail_evaluation(session, eval_id, str(e))
+                    await session.commit()
+            except Exception:
+                pass
+        raise
 
 
 @router.post("/validate", response_model=ValidationResult)
