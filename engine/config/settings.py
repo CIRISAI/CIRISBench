@@ -136,7 +136,27 @@ class Settings(BaseSettings):
         description="LangSmith API endpoint."
     )
 
-    # Add other global settings as needed
+    # --- Authentication ---
+    jwt_secret: str = Field(
+        default="",
+        validation_alias='JWT_SECRET',
+        description="Shared secret for HS256 JWT validation (must match CIRISNode)."
+    )
+    auth_enabled: bool = Field(
+        default=True,
+        validation_alias='AUTH_ENABLED',
+        description="Enable JWT/API-key auth on write endpoints. Set false for local dev."
+    )
+    api_keys: str = Field(
+        default="",
+        validation_alias='ENGINE_API_KEYS',
+        description="Comma-separated valid API keys for programmatic access."
+    )
+    allowed_origins: str = Field(
+        default="https://ethicsengine.org,https://www.ethicsengine.org,https://node0.ciris.ai,https://ciris.ai,https://www.ciris.ai,http://localhost:3000",
+        validation_alias='ALLOWED_ORIGINS',
+        description="Comma-separated allowed CORS origins."
+    )
 
     class Config:
         env_file = '.env'

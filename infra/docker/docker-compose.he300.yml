@@ -119,6 +119,11 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - HOST=0.0.0.0
       - PORT=8080
+      # Authentication
+      - JWT_SECRET=${JWT_SECRET:-change-this}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - ENGINE_API_KEYS=${ENGINE_API_KEYS:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://ethicsengine.org,https://www.ethicsengine.org,https://node0.ciris.ai,https://ciris.ai,https://www.ciris.ai,http://localhost:3000}
       # HE-300 Settings
       - HE300_ENABLED=${HE300_ENABLED:-true}
       - HE300_BATCH_SIZE=${HE300_BATCH_SIZE:-50}
@@ -166,6 +171,9 @@ services:
     environment:
       - PYTHONPATH=/app
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - JWT_SECRET=${JWT_SECRET:-change-this}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - ENGINE_API_KEYS=${ENGINE_API_KEYS:-}
       - DATABASE_URL_ASYNC=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
       - DATABASE_URL_SYNC=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-cirisnode}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
