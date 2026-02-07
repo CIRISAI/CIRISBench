@@ -26,6 +26,7 @@ from pydantic import ValidationError, BaseModel, Field
 
 from engine.db.session import async_session_factory
 from engine.db import eval_service
+from engine.schemas.agent_spec import AgentSpec, NoAuth, BearerAuth, A2AProtocolConfig
 from api.dependencies import require_auth
 
 # Add project root to path for imports
@@ -1711,6 +1712,7 @@ async def ciris_status():
 try:
     from core.he300_runner import (
         run_batch,
+        run_batch_v2,
         BatchConfig,
         BatchResult,
         ScenarioInput,
@@ -1812,6 +1814,64 @@ class AgentBeatsBenchmarkRequest(BaseModel):
         default=None,
         description="Path to client key for mTLS"
     )
+
+    # --- V2: typed agent specification (takes precedence over flat fields) ---
+    agent_spec: Optional[AgentSpec] = Field(
+        default=None,
+        description="Typed agent specification. When present, overrides agent_url/protocol/api_key/TLS fields.",
+    )
+
+    def resolve_agent_spec(self) -> Optional[AgentSpec]:
+        """Return the AgentSpec: use agent_spec if present, else build from flat fields."""
+        if self.agent_spec is not None:
+            return self.agent_spec
+        # Auto-convert legacy flat fields to AgentSpec
+        if not self.agent_url:
+            return None
+        auth = NoAuth()
+        if self.api_key:
+            auth = BearerAuth(token=self.api_key)
+        from engine.schemas.agent_spec import TlsConfig
+        tls = TlsConfig(
+            verify_ssl=self.verify_ssl,
+            ca_cert_path=self.ca_cert_path,
+            client_cert_path=self.client_cert_path,
+            client_key_path=self.client_key_path,
+        )
+        # Map flat protocol string to the appropriate ProtocolConfig
+        protocol_config = _build_protocol_config(self.protocol)
+        return AgentSpec(
+            name=self.agent_name or "Legacy Agent",
+            url=self.agent_url,
+            protocol_config=protocol_config,
+            auth=auth,
+            tls=tls,
+            timeout=self.timeout_per_scenario,
+        )
+
+
+def _build_protocol_config(protocol: str):
+    """Build the appropriate ProtocolConfig from a protocol string."""
+    from engine.schemas.agent_spec import (
+        A2AProtocolConfig,
+        MCPProtocolConfig,
+        RESTProtocolConfig,
+        OpenAIProtocolConfig,
+        DirectProtocolConfig,
+    )
+    configs = {
+        "a2a": A2AProtocolConfig,
+        "mcp": MCPProtocolConfig,
+        "rest": RESTProtocolConfig,
+        "openai": OpenAIProtocolConfig,
+        "direct": DirectProtocolConfig,
+    }
+    cls = configs.get(protocol, A2AProtocolConfig)
+    if protocol == "openai":
+        return cls(model="unknown")
+    if protocol == "direct":
+        return cls(proxy_route="unknown")
+    return cls()
 
 
 class AgentBeatsBenchmarkResponse(BaseModel):
@@ -1958,27 +2018,40 @@ async def run_agentbeats_benchmark(
         if request.evaluator_base_url:
             llm_config["base_url"] = request.evaluator_base_url
 
-    # Build batch config
-    batch_config = BatchConfig(
-        batch_id=batch_id,
-        concurrency=request.concurrency,
-        agent_config={
-            "url": request.agent_url,
-            "protocol": request.protocol,
-            "api_key": request.api_key,
-            "verify_ssl": request.verify_ssl,
-            "ca_cert_path": request.ca_cert_path,
-            "client_cert_path": request.client_cert_path,
-            "client_key_path": request.client_key_path,
-        },
-        llm_config=llm_config,
-        timeout_per_scenario=request.timeout_per_scenario,
-        semantic_evaluation=request.semantic_evaluation,
-    )
+    # Resolve agent specification (v2 typed spec takes precedence)
+    resolved_spec = request.resolve_agent_spec()
 
-    # Run the benchmark
+    # Run the benchmark — use v2 path if we have a typed AgentSpec
     try:
-        result = await run_batch(scenario_inputs, batch_config)
+        if resolved_spec is not None:
+            result = await run_batch_v2(
+                scenario_inputs,
+                resolved_spec,
+                batch_id=batch_id,
+                concurrency=request.concurrency,
+                semantic_evaluation=request.semantic_evaluation,
+                llm_config_dict=llm_config,
+                timeout_per_scenario=request.timeout_per_scenario,
+            )
+        else:
+            # Legacy path: flat dict-based BatchConfig
+            batch_config = BatchConfig(
+                batch_id=batch_id,
+                concurrency=request.concurrency,
+                agent_config={
+                    "url": request.agent_url,
+                    "protocol": request.protocol,
+                    "api_key": request.api_key,
+                    "verify_ssl": request.verify_ssl,
+                    "ca_cert_path": request.ca_cert_path,
+                    "client_cert_path": request.client_cert_path,
+                    "client_key_path": request.client_key_path,
+                },
+                llm_config=llm_config,
+                timeout_per_scenario=request.timeout_per_scenario,
+                semantic_evaluation=request.semantic_evaluation,
+            )
+            result = await run_batch(scenario_inputs, batch_config)
     except Exception as e:
         logger.error(f"Benchmark failed: {e}")
         raise HTTPException(
@@ -1987,13 +2060,13 @@ async def run_agentbeats_benchmark(
         )
 
     # Store trace for CIRIS validation
-    store_trace(batch_id, {
+    trace_data = {
         "batch_id": batch_id,
         "agent_name": request.agent_name,
         "agent_type": "eee_purple",  # AgentBeats uses EEE Purple pipeline
         "model_name": request.model,
         "agent_url": request.agent_url,
-        "protocol": request.protocol,
+        "protocol": resolved_spec.protocol if resolved_spec else request.protocol,
         "concurrency": request.concurrency,
         "sample_size": request.sample_size,
         "random_seed": seed,
@@ -2011,7 +2084,15 @@ async def run_agentbeats_benchmark(
         "agent_card_provider": result.agent_card_provider,
         "agent_card_did": result.agent_card_did,
         "agent_card_skills": result.agent_card_skills,
-    })
+    }
+    # Include full agent_spec in trace for audit
+    if resolved_spec:
+        spec_dict = resolved_spec.model_dump(mode="json")
+        # Redact auth secrets from trace
+        if "auth" in spec_dict and spec_dict["auth"].get("auth_type") != "none":
+            spec_dict["auth"] = {"auth_type": spec_dict["auth"]["auth_type"], "redacted": True}
+        trace_data["agent_spec"] = spec_dict
+    store_trace(batch_id, trace_data)
 
     logger.info(
         f"Completed AgentBeats benchmark {batch_id}: "

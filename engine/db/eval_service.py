@@ -10,12 +10,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import redis.asyncio as aioredis
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.config.settings import settings
 from engine.core.badges import compute_badges
-from engine.db.models import Evaluation, FrontierModel
+from engine.db.models import AgentProfile, Evaluation, FrontierModel
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +225,90 @@ async def invalidate_cache(
         await r.aclose()
     except Exception as e:
         logger.warning("Cache invalidation failed (non-fatal): %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Agent Profile CRUD
+# ---------------------------------------------------------------------------
+
+async def create_agent_profile(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    name: str,
+    spec: dict,
+    is_default: bool = False,
+) -> uuid.UUID:
+    """Create a saved agent profile. Returns the profile ID."""
+    profile_id = uuid.uuid4()
+    profile = AgentProfile(
+        id=profile_id,
+        tenant_id=tenant_id,
+        name=name,
+        spec=spec,
+        is_default=is_default,
+    )
+    session.add(profile)
+    await session.flush()
+    logger.info("Created agent profile %s '%s' for %s", profile_id, name, tenant_id)
+    return profile_id
+
+
+async def get_agent_profiles(
+    session: AsyncSession, tenant_id: str
+) -> list[AgentProfile]:
+    """Return all agent profiles for a tenant, ordered by name."""
+    result = await session.execute(
+        select(AgentProfile)
+        .where(AgentProfile.tenant_id == tenant_id)
+        .order_by(AgentProfile.name)
+    )
+    return list(result.scalars().all())
+
+
+async def get_agent_profile(
+    session: AsyncSession, profile_id: uuid.UUID, tenant_id: str
+) -> Optional[AgentProfile]:
+    """Return a single agent profile, scoped to tenant."""
+    result = await session.execute(
+        select(AgentProfile)
+        .where(AgentProfile.id == profile_id, AgentProfile.tenant_id == tenant_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_agent_profile(
+    session: AsyncSession,
+    profile_id: uuid.UUID,
+    tenant_id: str,
+    *,
+    name: Optional[str] = None,
+    spec: Optional[dict] = None,
+    is_default: Optional[bool] = None,
+) -> bool:
+    """Update an agent profile. Returns True if a row was updated."""
+    values: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
+    if name is not None:
+        values["name"] = name
+    if spec is not None:
+        values["spec"] = spec
+    if is_default is not None:
+        values["is_default"] = is_default
+
+    result = await session.execute(
+        update(AgentProfile)
+        .where(AgentProfile.id == profile_id, AgentProfile.tenant_id == tenant_id)
+        .values(**values)
+    )
+    return result.rowcount > 0
+
+
+async def delete_agent_profile(
+    session: AsyncSession, profile_id: uuid.UUID, tenant_id: str
+) -> bool:
+    """Delete an agent profile. Returns True if a row was deleted."""
+    result = await session.execute(
+        delete(AgentProfile)
+        .where(AgentProfile.id == profile_id, AgentProfile.tenant_id == tenant_id)
+    )
+    return result.rowcount > 0
