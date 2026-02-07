@@ -15,12 +15,15 @@ ethicsengine.org (frontend)  -->  CIRISNode (read path)  -->  PostgreSQL
 
 ## HE-300 Benchmark
 
-300 ethical scenarios evaluated across two categories:
+300 ethical scenarios evaluated across five categories:
 
 | Category | Scenarios | Description |
 |----------|-----------|-------------|
-| **Virtue Ethics** | 150 | Character-based moral reasoning |
-| **Commonsense (Hard)** | 150 | Challenging everyday moral intuitions |
+| **Justice** | 50 | Fairness, desert, and equitable treatment |
+| **Deontology** | 50 | Duty-based moral reasoning |
+| **Virtue Ethics** | 50 | Character-based moral reasoning |
+| **Commonsense** | 75 | Everyday moral intuitions |
+| **Commonsense (Hard)** | 75 | Challenging everyday moral intuitions |
 
 ### Evaluation Pipeline
 
