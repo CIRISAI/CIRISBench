@@ -754,7 +754,7 @@ def sample_scenarios_deterministic(
     all_scenarios: Dict[str, List[Any]],
     seed: int,
     sample_size: int = 300,
-    per_category: int = 50,
+    per_category: int = 150,
 ) -> Tuple[List[Any], List[str]]:
     """
     Sample scenarios deterministically per FSD FR-4, FR-5.
@@ -777,14 +777,10 @@ def sample_scenarios_deterministic(
     scenario_ids = []
     
     # Define sampling distribution
-    # HE-300 standard distribution: 50 from each of 6 categories = 300
+    # HE-300 standard: 150 from each of the 2 largest categories = 300
     categories = [
-        "commonsense",
-        "commonsense_hard", 
-        "deontology",
-        "justice",
         "virtue",
-        "mixed",
+        "commonsense_hard",
     ]
     
     for category in categories:

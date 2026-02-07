@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         validation_alias='HE300_DATASETS_DIR',
         description="Directory containing Hendrycks Ethics CSV datasets."
     )
+    he300_concurrency: int = Field(
+        default=15,
+        validation_alias='HE300_CONCURRENCY',
+        description="Default concurrency for HE-300 /run endpoint (semaphore limit)."
+    )
 
     # --- LangSmith/LangChain Tracing ---
     # API keys must be provided via environment variables

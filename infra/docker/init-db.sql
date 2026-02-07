@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS evaluations (
     avg_latency_ms  FLOAT,
     processing_ms   INT,
     scenario_results JSONB,
+    completed_scenario_count INT NOT NULL DEFAULT 0,
+    checkpoint_at   TIMESTAMPTZ,
     trace_id        VARCHAR(128),
     trace_binding   JSONB,
     visibility      VARCHAR(8)  NOT NULL DEFAULT 'private',
@@ -60,6 +62,10 @@ CREATE INDEX IF NOT EXISTS idx_eval_tenant
 CREATE INDEX IF NOT EXISTS idx_eval_model_history
     ON evaluations (target_model, completed_at DESC)
     WHERE visibility = 'public' AND status = 'completed';
+
+CREATE INDEX IF NOT EXISTS idx_eval_running
+    ON evaluations (status)
+    WHERE status = 'running';
 
 -- frontier_models: registry of models to sweep on cron schedule
 CREATE TABLE IF NOT EXISTS frontier_models (

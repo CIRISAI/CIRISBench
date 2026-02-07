@@ -873,6 +873,10 @@ class HE300CompliantRunRequest(BaseModel):
         default=False,
         description="Include detailed execution traces for each scenario"
     )
+    concurrency: int = Field(
+        default=0,
+        description="Max parallel scenario evaluations. 0 = use server default from settings."
+    )
 
 
 class HE300CompliantRunResponse(BaseModel):
@@ -1122,7 +1126,7 @@ async def run_he300_compliant(
         all_scenarios=scenarios_by_category,
         seed=seed,
         sample_size=300,
-        per_category=50,
+        per_category=150,
     )
     
     if len(sampled_scenarios) < 300:
@@ -1150,99 +1154,223 @@ async def run_he300_compliant(
             ))
     
     logger.info(f"Evaluating {len(scenario_requests)} scenarios for batch {request.batch_id}")
-    
-    # Evaluate all scenarios (300 total, in batches for efficiency)
-    results: List[HE300ScenarioResult] = []
-    for scenario in scenario_requests:
-        result = await evaluate_scenario(
-            scenario=scenario,
-            engine=engine,
+
+    # --- Determine concurrency ---
+    concurrency = request.concurrency if request.concurrency > 0 else settings.he300_concurrency
+    logger.info(f"Concurrency: {concurrency}")
+
+    # --- Create evaluation row BEFORE the run ---
+    eval_id = None
+    try:
+        async with async_session_factory() as session:
+            eval_id = await eval_service.create_evaluation(
+                session,
+                tenant_id="system",
+                eval_type="client",
+                protocol="direct",
+                seed=seed,
+                target_model=request.model_name,
+                sample_size=len(scenario_requests),
+                concurrency=concurrency,
+                visibility="private",
+                batch_config={"batch_id": request.batch_id, "identity_id": request.identity_id},
+            )
+            await session.commit()
+            await eval_service.start_evaluation(session, eval_id)
+            await session.commit()
+        logger.info(f"Created eval row {eval_id} for batch {request.batch_id}")
+    except Exception as e:
+        logger.warning(f"Failed to create eval row (non-fatal): {e}")
+        eval_id = None
+
+    # --- Parallel evaluation with incremental checkpointing ---
+    CHECKPOINT_INTERVAL = 25
+    semaphore = asyncio.Semaphore(concurrency)
+    checkpoint_lock = asyncio.Lock()
+    pending_checkpoint: List[dict] = []
+    results: List[Optional[HE300ScenarioResult]] = [None] * len(scenario_requests)
+
+    async def _flush_checkpoint() -> None:
+        """Persist pending results to Postgres."""
+        nonlocal pending_checkpoint
+        if not eval_id or not pending_checkpoint:
+            logger.debug(f"Skipping checkpoint: eval_id={eval_id}, pending={len(pending_checkpoint)}")
+            return
+        batch_to_persist = pending_checkpoint.copy()
+        pending_checkpoint.clear()
+        logger.info(f"Flushing checkpoint: {len(batch_to_persist)} results for eval {eval_id}")
+        try:
+            async with async_session_factory() as sess:
+                await eval_service.checkpoint_scenario_results(sess, eval_id, batch_to_persist)
+                await sess.commit()
+            logger.info(f"Checkpoint committed: {len(batch_to_persist)} results")
+        except Exception as exc:
+            logger.warning(f"Checkpoint failed (non-fatal): {exc}", exc_info=True)
+
+    async def evaluate_and_checkpoint(idx: int, scenario: HE300ScenarioRequest) -> None:
+        async with semaphore:
+            result = await evaluate_scenario(
+                scenario=scenario,
+                engine=engine,
+                identity_id=request.identity_id,
+                guidance_id=request.guidance_id,
+                batch_id=request.batch_id,
+                scenario_index=idx,
+            )
+        results[idx] = result
+
+        async with checkpoint_lock:
+            pending_checkpoint.append(result.model_dump(mode="json"))
+            if len(pending_checkpoint) >= CHECKPOINT_INTERVAL:
+                await _flush_checkpoint()
+
+    try:
+        tasks = [
+            evaluate_and_checkpoint(idx, scenario)
+            for idx, scenario in enumerate(scenario_requests)
+        ]
+        raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert any top-level exceptions into error results
+        for idx, item in enumerate(raw):
+            if isinstance(item, Exception):
+                logger.error(f"Scenario {scenario_requests[idx].scenario_id} raised: {item}")
+                results[idx] = HE300ScenarioResult(
+                    scenario_id=scenario_requests[idx].scenario_id,
+                    category=scenario_requests[idx].category,
+                    input_text=scenario_requests[idx].input_text,
+                    expected_label=scenario_requests[idx].expected_label,
+                    predicted_label=None,
+                    model_response="",
+                    is_correct=False,
+                    latency_ms=0.0,
+                    error=str(item),
+                    trace_id=f"{request.batch_id}-scenario-{idx}",
+                    heuristic_eval=None,
+                    semantic_eval=None,
+                    evaluations_agree=True,
+                    disagreement_note=None,
+                )
+
+        # Flush remaining checkpoint
+        async with checkpoint_lock:
+            await _flush_checkpoint()
+
+        # Filter None (shouldn't happen, but defensive)
+        final_results: List[HE300ScenarioResult] = [r for r in results if r is not None]
+
+        # Calculate summary
+        summary = calculate_summary(final_results)
+
+        # Determine status
+        if summary.errors == summary.total:
+            batch_status = "error"
+        elif summary.errors > 0:
+            batch_status = "partial"
+        else:
+            batch_status = "completed"
+
+        processing_time_ms = (time.time() - start_time) * 1000
+        logger.info(f"Processing time: {processing_time_ms:.0f}ms ({processing_time_ms/1000:.1f}s)")
+
+        # Create batch response
+        batch_response = HE300BatchResponse(
+            batch_id=request.batch_id,
+            status=batch_status,
+            results=final_results,
+            summary=summary,
             identity_id=request.identity_id,
             guidance_id=request.guidance_id,
+            processing_time_ms=processing_time_ms,
         )
-        results.append(result)
-    
-    # Calculate summary
-    summary = calculate_summary(results)
-    
-    # Determine status
-    if summary.errors == summary.total:
-        batch_status = "error"
-    elif summary.errors > 0:
-        batch_status = "partial"
-    else:
-        batch_status = "completed"
-    
-    processing_time_ms = (time.time() - start_time) * 1000
-    
-    # Create batch response
-    batch_response = HE300BatchResponse(
-        batch_id=request.batch_id,
-        status=batch_status,
-        results=results,
-        summary=summary,
-        identity_id=request.identity_id,
-        guidance_id=request.guidance_id,
-        processing_time_ms=processing_time_ms,
-    )
-    
-    # Validate if requested
-    validation_result = None
-    is_compliant = False
-    
-    if request.validate_after_run:
-        validator = HE300Validator(spec)
-        validation_result = validator.validate_batch_response(
-            response=batch_response,
-            seed=seed,
-            include_traces=request.include_scenario_traces,
+
+        # Validate if requested
+        validation_result = None
+        is_compliant = False
+
+        if request.validate_after_run:
+            validator = HE300Validator(spec)
+            validation_result = validator.validate_batch_response(
+                response=batch_response,
+                seed=seed,
+                include_traces=request.include_scenario_traces,
+            )
+            is_compliant = validation_result.is_he300_compliant
+            trace_id = validation_result.trace_id
+        else:
+            validator = HE300Validator(spec)
+            trace_obj = validator.generate_trace_id(
+                seed=seed,
+                scenario_ids=scenario_ids,
+                results=final_results,
+                summary=summary,
+            )
+            trace_id = trace_obj.trace_id
+            is_compliant = (
+                len(final_results) == 300
+                and summary.errors == 0
+                and batch_status == "completed"
+            )
+
+        # Store trace for later retrieval
+        store_trace(trace_id, {
+            "batch_id": request.batch_id,
+            "seed": seed,
+            "scenario_ids": scenario_ids,
+            "spec_version": spec.metadata.spec_version,
+            "spec_hash": spec.metadata.spec_hash,
+            "is_compliant": is_compliant,
+            "model_name": request.model_name,
+            "summary": summary.model_dump() if summary else None,
+            "validation_result": validation_result.model_dump() if validation_result else None,
+        })
+
+        # Complete eval row in Postgres
+        if eval_id:
+            try:
+                async with async_session_factory() as session:
+                    await eval_service.complete_evaluation(
+                        session,
+                        eval_id,
+                        accuracy=summary.accuracy,
+                        total_scenarios=summary.total,
+                        correct=summary.correct,
+                        errors=summary.errors,
+                        categories={k: v.model_dump() if hasattr(v, 'model_dump') else v for k, v in summary.by_category.items()} if summary.by_category else {},
+                        avg_latency_ms=summary.avg_latency_ms,
+                        processing_ms=int(processing_time_ms),
+                        trace_id=trace_id,
+                    )
+                    await session.commit()
+            except Exception as e:
+                logger.warning(f"Failed to complete eval row: {e}")
+
+        logger.info(
+            f"Completed HE-300 compliant run {request.batch_id}: "
+            f"{summary.correct}/{summary.total} correct ({summary.accuracy:.2%}), "
+            f"trace_id={trace_id}, compliant={is_compliant}"
         )
-        is_compliant = validation_result.is_he300_compliant
-        trace_id = validation_result.trace_id
-    else:
-        # Generate trace ID even if not validating
-        validator = HE300Validator(spec)
-        trace_obj = validator.generate_trace_id(
-            seed=seed,
-            scenario_ids=scenario_ids,
-            results=results,
-            summary=summary,
+
+        return HE300CompliantRunResponse(
+            batch_response=batch_response,
+            validation_result=validation_result,
+            trace_id=trace_id,
+            random_seed=seed,
+            spec_version=spec.metadata.spec_version,
+            spec_hash=spec.metadata.spec_hash,
+            is_he300_compliant=is_compliant,
         )
-        trace_id = trace_obj.trace_id
-        is_compliant = (
-            len(results) == 300 
-            and summary.errors == 0 
-            and batch_status == "completed"
-        )
-    
-    # Store trace for later retrieval
-    store_trace(trace_id, {
-        "batch_id": request.batch_id,
-        "seed": seed,
-        "scenario_ids": scenario_ids,
-        "spec_version": spec.metadata.spec_version,
-        "spec_hash": spec.metadata.spec_hash,
-        "is_compliant": is_compliant,
-        "model_name": request.model_name,
-        "summary": summary.model_dump() if summary else None,
-        "validation_result": validation_result.model_dump() if validation_result else None,
-    })
-    
-    logger.info(
-        f"Completed HE-300 compliant run {request.batch_id}: "
-        f"{summary.correct}/{summary.total} correct ({summary.accuracy:.2%}), "
-        f"trace_id={trace_id}, compliant={is_compliant}"
-    )
-    
-    return HE300CompliantRunResponse(
-        batch_response=batch_response,
-        validation_result=validation_result,
-        trace_id=trace_id,
-        random_seed=seed,
-        spec_version=spec.metadata.spec_version,
-        spec_hash=spec.metadata.spec_hash,
-        is_he300_compliant=is_compliant,
-    )
+
+    except Exception as e:
+        # Mark eval as failed on any unhandled exception
+        if eval_id:
+            try:
+                async with async_session_factory() as session:
+                    await eval_service.fail_evaluation(session, eval_id, str(e))
+                    await session.commit()
+            except Exception:
+                pass
+        raise
 
 
 @router.post("/validate", response_model=ValidationResult)

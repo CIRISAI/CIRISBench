@@ -109,6 +109,7 @@ async def complete_evaluation(
             trace_binding=trace_binding,
             model_version=model_version,
             badges=badges,
+            completed_scenario_count=total_scenarios,
             completed_at=datetime.now(timezone.utc),
         )
     )
@@ -144,6 +145,47 @@ async def fail_evaluation(
         )
     )
     logger.warning("Failed evaluation %s: %s", eval_id, error_msg)
+
+
+async def checkpoint_scenario_results(
+    session: AsyncSession,
+    eval_id: uuid.UUID,
+    new_results: list[dict],
+) -> None:
+    """Append scenario results to the JSONB array and bump checkpoint count.
+
+    Uses PostgreSQL ``||`` to atomically append without rewriting the
+    entire column from the application side.
+    """
+    import json as _json
+    from sqlalchemy import text
+
+    now = datetime.now(timezone.utc)
+    count = len(new_results)
+    await session.execute(
+        text(
+            "UPDATE evaluations "
+            "SET scenario_results = COALESCE(scenario_results, CAST('[]' AS jsonb)) || CAST(:new_results AS jsonb), "
+            "    completed_scenario_count = completed_scenario_count + :count, "
+            "    checkpoint_at = :now "
+            "WHERE id = CAST(:eval_id AS uuid)"
+        ),
+        {
+            "new_results": _json.dumps(new_results, default=str),
+            "count": count,
+            "now": now,
+            "eval_id": str(eval_id),
+        },
+    )
+    logger.info("Checkpointed %d results for eval %s", count, eval_id)
+
+
+async def get_running_evaluations(session: AsyncSession) -> list[Evaluation]:
+    """Return all evaluations stuck in 'running' status (crash recovery)."""
+    result = await session.execute(
+        select(Evaluation).where(Evaluation.status == "running")
+    )
+    return list(result.scalars().all())
 
 
 async def get_frontier_models(session: AsyncSession) -> list[FrontierModel]:

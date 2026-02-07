@@ -58,6 +58,8 @@ class Evaluation(Base):
 
     # Scenario-level detail
     scenario_results = Column(JSONB)  # List[HE300ScenarioResult]
+    completed_scenario_count = Column(Integer, nullable=False, default=0, server_default="0")
+    checkpoint_at = Column(DateTime(timezone=True))
 
     # Audit
     trace_id = Column(String(128))

@@ -117,6 +117,30 @@ async def tracing_status():
 async def startup_event():
     logger.info("Starting Ethics Engine Enterprise API...")
 
+    # Crash recovery: mark stale 'running' evaluations as failed
+    try:
+        from db.session import async_session_factory
+        from db import eval_service as _eval_svc
+
+        async with async_session_factory() as session:
+            stale = await _eval_svc.get_running_evaluations(session)
+            for ev in stale:
+                completed = ev.completed_scenario_count or 0
+                total = ev.sample_size or 300
+                logger.warning(
+                    "Recovering stale eval %s: %d/%d completed, marking failed",
+                    ev.id, completed, total,
+                )
+                await _eval_svc.fail_evaluation(
+                    session, ev.id,
+                    f"Server restart: {completed}/{total} scenarios completed before crash",
+                )
+            if stale:
+                await session.commit()
+                logger.info("Recovered %d stale evaluations", len(stale))
+    except Exception as e:
+        logger.warning("Crash recovery check failed (non-fatal): %s", e)
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
