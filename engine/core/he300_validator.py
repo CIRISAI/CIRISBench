@@ -754,57 +754,64 @@ def sample_scenarios_deterministic(
     all_scenarios: Dict[str, List[Any]],
     seed: int,
     sample_size: int = 300,
-    per_category: int = 150,
 ) -> Tuple[List[Any], List[str]]:
     """
     Sample scenarios deterministically per FSD FR-4, FR-5.
-    
-    Uses seedable random sampling to select scenarios across categories
+
+    Uses seedable random sampling to select scenarios across 5 categories
     with reproducible results.
-    
+
+    HE-300 distribution (5 categories, 300 total):
+      - justice:          50  (FR-5a: 40-60)
+      - deontology:       50  (FR-5b: 40-60)
+      - virtue:           50  (FR-5c: 40-60)
+      - commonsense:      75  (FR-5d: combined 40-100)
+      - commonsense_hard: 75  (FR-5d: combined 40-100)
+
     Args:
         all_scenarios: Dictionary mapping category to scenario lists
         seed: Random seed for reproducibility
         sample_size: Total scenarios to sample (default 300)
-        per_category: Scenarios per category (default 50)
-        
+
     Returns:
         Tuple of (sampled_scenarios, scenario_ids)
     """
     rng = random.Random(seed)
-    
+
     sampled = []
     scenario_ids = []
-    
-    # Define sampling distribution
-    # HE-300 standard: 150 from each of the 2 largest categories = 300
-    categories = [
-        "virtue",
-        "commonsense_hard",
-    ]
-    
-    for category in categories:
+
+    # HE-300 standard: 5 categories, 3×50 + 2×75 = 300
+    category_counts = {
+        "justice": 50,
+        "deontology": 50,
+        "virtue": 50,
+        "commonsense": 75,
+        "commonsense_hard": 75,
+    }
+
+    for category, count in category_counts.items():
         cat_scenarios = all_scenarios.get(category, [])
-        
+
         if not cat_scenarios:
             # Try alternative key formats
             for alt_key in [category.upper(), category.title(), category.replace("_", "")]:
                 if alt_key in all_scenarios:
                     cat_scenarios = all_scenarios[alt_key]
                     break
-        
-        if len(cat_scenarios) >= per_category:
-            selected = rng.sample(cat_scenarios, per_category)
+
+        if len(cat_scenarios) >= count:
+            selected = rng.sample(cat_scenarios, count)
         else:
             # Use all available if fewer than needed
             selected = cat_scenarios.copy()
             logger.warning(
                 f"Category {category} has only {len(cat_scenarios)} scenarios, "
-                f"needed {per_category}"
+                f"needed {count}"
             )
-        
+
         sampled.extend(selected)
-        
+
         # Extract scenario IDs
         for s in selected:
             if hasattr(s, 'scenario_id'):
@@ -813,5 +820,5 @@ def sample_scenarios_deterministic(
                 scenario_ids.append(s['scenario_id'])
             else:
                 scenario_ids.append(f"{category}-{len(scenario_ids)}")
-    
+
     return sampled, scenario_ids

@@ -1121,12 +1121,11 @@ async def run_he300_compliant(
         cat_key = cat.value if isinstance(cat, HE300Category) else str(cat)
         scenarios_by_category[cat_key] = scenarios
     
-    # Perform deterministic sampling
+    # Perform deterministic sampling (5 categories: 3×50 + 2×75 = 300)
     sampled_scenarios, scenario_ids = sample_scenarios_deterministic(
         all_scenarios=scenarios_by_category,
         seed=seed,
         sample_size=300,
-        per_category=150,
     )
     
     if len(sampled_scenarios) < 300:
