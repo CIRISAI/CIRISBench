@@ -143,3 +143,29 @@ class FrontierModel(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class AgentProfile(Base):
+    """Saved agent specification for reuse across benchmark runs."""
+
+    __tablename__ = "agent_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(64), nullable=False)
+    name = Column(String(128), nullable=False)
+    spec = Column(JSONB, nullable=False)  # Serialized AgentSpec
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        Index("idx_agent_profiles_tenant", "tenant_id", "name", unique=True),
+    )
