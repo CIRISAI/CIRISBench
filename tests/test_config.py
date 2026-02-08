@@ -4,9 +4,13 @@ import pytest
 from cirisbench.config import Settings, get_settings
 
 
-def test_settings_defaults():
-    """Test that settings have sensible defaults."""
-    settings = Settings()
+def test_settings_defaults(monkeypatch):
+    """Test that settings have sensible defaults (env vars cleared)."""
+    # Clear env vars that might override defaults (e.g. from .env file)
+    for key in ("LLM_MODEL", "HE300_SAMPLE_SIZE", "CIRISNODE_URL", "EEE_HOST", "EEE_PORT"):
+        monkeypatch.delenv(key, raising=False)
+
+    settings = Settings(_env_file=None)  # Ignore .env file for default test
 
     assert settings.cirisnode_url == "http://localhost:8000"
     assert settings.eee_host == "0.0.0.0"
@@ -17,7 +21,7 @@ def test_settings_defaults():
 
 def test_settings_paths():
     """Test that path properties resolve correctly."""
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.root_dir.exists()
     assert settings.engine_dir.name == "engine"
@@ -37,7 +41,6 @@ def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "openai/gpt-4o")
     monkeypatch.setenv("HE300_SAMPLE_SIZE", "100")
 
-    # Clear the cache to get fresh settings
     get_settings.cache_clear()
     settings = Settings()
 
