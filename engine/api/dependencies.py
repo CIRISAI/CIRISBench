@@ -56,14 +56,18 @@ async def require_auth(
     if not settings.auth_enabled:
         return "anonymous"
 
-    # 1. Try Bearer JWT
+    # 1. Try Bearer token (JWT first, then static API key)
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1]
         actor = _validate_jwt(token)
         if actor:
             return actor
+        # Bearer token might be a static API key (e.g. AGENTBEATS_API_KEY)
+        actor = _validate_api_key(token)
+        if actor:
+            return actor
 
-    # 2. Try API key
+    # 2. Try X-API-Key header
     if x_api_key:
         actor = _validate_api_key(x_api_key)
         if actor:

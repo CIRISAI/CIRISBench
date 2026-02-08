@@ -43,6 +43,15 @@ elif [ -n "$OLLAMA_BASE_URL" ]; then
     timeout 60 bash -c "until curl -sf ${OLLAMA_BASE_URL}/api/tags 2>/dev/null; do sleep 2; done" || echo "Ollama not available, continuing..."
 fi
 
+# ---------------------------------------------------------------------------
+# Standalone mode: wire AGENTBEATS_API_KEY -> ENGINE_API_KEYS so the Engine
+# validates incoming API keys from the AgentBeats platform.
+# ---------------------------------------------------------------------------
+if [ -n "$AGENTBEATS_API_KEY" ] && [ -z "$ENGINE_API_KEYS" ]; then
+    export ENGINE_API_KEYS="$AGENTBEATS_API_KEY"
+    echo "Engine API key set from AGENTBEATS_API_KEY"
+fi
+
 # Run database migrations
 echo "Running database migrations..."
 # CIRISNode SQL migrations (auto-migrator with schema_migrations tracking)
