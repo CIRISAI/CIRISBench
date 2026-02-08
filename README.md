@@ -115,10 +115,19 @@ Results are published to the public leaderboard at [ethicsengine.org/scores](htt
 
 | Service | Purpose |
 |---------|---------|
-| PostgreSQL | `evaluations` + `frontier_models` tables |
+| PostgreSQL | `evaluations` + `frontier_models` + `tenant_tiers` tables |
 | Redis | Cache + Celery broker |
 | Celery Worker | Processes evaluation tasks |
 | Celery Beat | Weekly frontier sweep schedule |
+
+### Billing (Stripe)
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Stripe router | `engine/api/routers/stripe_billing.py` | Checkout session, customer portal, webhook handler |
+| TenantTier model | `engine/db/models.py` | Subscription tier per tenant |
+| Billing proxy | `CIRISNode/cirisnode/api/billing/routes.py` | Proxies checkout/portal/webhook from frontend to Engine |
+| Migration | `engine/db/alembic/versions/004_add_tenant_tiers.py` | Schema for `tenant_tiers` table |
 
 ## API Reference
 
@@ -131,6 +140,14 @@ Results are published to the public leaderboard at [ethicsengine.org/scores](htt
 | `/he300/validate` | POST | Validate a previous batch run |
 | `/he300/agentbeats/run` | POST | AgentBeats-compatible parallel benchmark |
 | `/health` | GET | Service health check |
+
+### Billing Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/billing/checkout` | POST | Create Stripe Checkout session (auth required) |
+| `/billing/portal` | GET | Create Stripe Customer Portal session (auth required) |
+| `/billing/webhook` | POST | Stripe webhook handler (signature verified, no auth) |
 
 ### Run Request
 
@@ -177,6 +194,9 @@ Results are published to the public leaderboard at [ethicsengine.org/scores](htt
 | `OPENAI_API_KEY` | - | OpenAI API key |
 | `HE300_CONCURRENCY` | `15` | Default parallel evaluation limit |
 | `FRONTIER_SWEEP_ENABLED` | `false` | Enable weekly frontier sweep |
+| `STRIPE_SECRET_KEY` | - | Stripe secret API key (`sk_live_...` or `sk_test_...`) |
+| `STRIPE_WEBHOOK_SECRET` | - | Stripe webhook signing secret (`whsec_...`) |
+| `STRIPE_PRO_PRICE_ID` | - | Stripe Price ID for Pro monthly subscription |
 
 ## Docker Deployment
 
