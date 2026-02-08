@@ -23,8 +23,8 @@ def setup_logging():
     # --- Console Handler ---
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(log_format)
-    # Set console handler to only show WARNING and above
-    console_handler.setLevel(logging.WARNING)
+    # Show INFO and above on console so benchmark progress is visible
+    console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
 
     # --- File Handler (Optional, based on config) ---

@@ -900,12 +900,29 @@ async def run_batch_v2(
     llm_config = None
     if semantic_evaluation:
         if llm_config_dict:
+            # Ensure base_url is set correctly for the provider
+            _provider_base_urls = {
+                "openai": "https://api.openai.com/v1",
+                "anthropic": "https://api.anthropic.com/v1",
+                "openrouter": "https://openrouter.ai/api/v1",
+                "together": "https://api.together.xyz/v1",
+                "ollama": llm_config_dict.get("base_url", "http://localhost:11434"),
+            }
+            if "base_url" not in llm_config_dict and llm_config_dict.get("provider"):
+                llm_config_dict["base_url"] = _provider_base_urls.get(
+                    llm_config_dict["provider"], "http://localhost:11434"
+                )
             llm_config = LLMConfig(**llm_config_dict)
         else:
             llm_config = get_llm_config()
+        logger.info("[RUNNER] Semantic evaluation enabled (provider=%s, model=%s)",
+                    llm_config.provider if llm_config else "default",
+                    llm_config.model if llm_config else "?")
 
     # Optional discovery
     adapter = get_adapter(agent_spec.protocol)
+    logger.info("[RUNNER] Protocol adapter: %s -> %s", agent_spec.protocol, type(adapter).__name__)
+
     ssl_context = (
         _build_ssl_context_from_spec(agent_spec) if agent_spec.tls.verify_ssl else False
     )
@@ -913,12 +930,19 @@ async def run_batch_v2(
     agent_card_data = None
     async with httpx.AsyncClient(verify=ssl_context) as discovery_client:
         agent_card_data = await adapter.discover(agent_spec, discovery_client)
+    if agent_card_data:
+        logger.info("[RUNNER] Agent card discovered: name=%s, version=%s",
+                    agent_card_data.get("name", "?"), agent_card_data.get("version", "?"))
+    else:
+        logger.info("[RUNNER] No agent card at %s (continuing without discovery)", agent_spec.url)
 
     semaphore = asyncio.Semaphore(concurrency)
+    completed_count = 0
 
     async def _eval(scenario: ScenarioInput, idx: int, client: httpx.AsyncClient) -> ScenarioResult:
+        nonlocal completed_count
         async with semaphore:
-            return await evaluate_scenario_v2(
+            result = await evaluate_scenario_v2(
                 scenario=scenario,
                 agent_spec=agent_spec,
                 client=client,
@@ -927,7 +951,16 @@ async def run_batch_v2(
                 batch_id=batch_id,
                 scenario_index=idx,
             )
+        completed_count += 1
+        total = len(scenarios)
+        if completed_count % 25 == 0 or completed_count == total:
+            elapsed = time.time() - start_time
+            logger.info("[RUNNER] Progress: %d/%d (%.0f%%) — %.1fs elapsed",
+                        completed_count, total,
+                        completed_count / total * 100, elapsed)
+        return result
 
+    logger.info("[RUNNER] Dispatching %d scenarios (concurrency=%d)...", len(scenarios), concurrency)
     results: List[ScenarioResult] = []
     async with httpx.AsyncClient(verify=ssl_context) as client:
         tasks = [_eval(s, i, client) for i, s in enumerate(scenarios)]
@@ -987,10 +1020,17 @@ async def run_batch_v2(
     if agent_card_data:
         ac_name = agent_card_data.get("name", "")
         ac_version = agent_card_data.get("version", "")
-        prov = agent_card_data.get("provider", {})
-        ac_provider = prov.get("organization", prov.get("name", ""))
+        prov = agent_card_data.get("provider", "")
+        if isinstance(prov, dict):
+            ac_provider = prov.get("organization", prov.get("name", ""))
+        else:
+            ac_provider = str(prov)
         ac_did = agent_card_data.get("did")
-        ac_skills = [s.get("name", s.get("id", "")) for s in agent_card_data.get("skills", [])]
+        raw_skills = agent_card_data.get("skills", [])
+        ac_skills = [
+            s.get("name", s.get("id", "")) if isinstance(s, dict) else str(s)
+            for s in raw_skills
+        ]
 
     return BatchResult(
         batch_id=batch_id,
