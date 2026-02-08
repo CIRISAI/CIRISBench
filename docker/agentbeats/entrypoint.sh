@@ -43,10 +43,13 @@ elif [ -n "$OLLAMA_BASE_URL" ]; then
     timeout 60 bash -c "until curl -sf ${OLLAMA_BASE_URL}/api/tags 2>/dev/null; do sleep 2; done" || echo "Ollama not available, continuing..."
 fi
 
-# Run database migrations if needed
-if [ "$RUN_MIGRATIONS" = "true" ]; then
-    echo "Running database migrations..."
-    cd /app && python -m cirisnode.db.migrate || true
+# Run database migrations
+echo "Running database migrations..."
+# CIRISNode SQL migrations (auto-migrator with schema_migrations tracking)
+cd /app && python -m cirisnode.db.migrator || echo "CIRISNode migrations: skipped or failed (non-fatal)"
+# Engine alembic migrations (if alembic is available and DB is reachable)
+if [ -f /app/engine/alembic.ini ] || [ -f /app/alembic.ini ]; then
+    cd /app && python -m alembic upgrade head 2>/dev/null || echo "Engine alembic migrations: skipped or failed (non-fatal)"
 fi
 
 # Execute command
