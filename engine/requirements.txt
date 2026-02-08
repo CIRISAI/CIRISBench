@@ -38,5 +38,8 @@ redis>=5.0.0
 # Auth
 PyJWT>=2.8.0
 
+# Billing
+stripe>=7.0.0
+
 pytest
 pytest-asyncio

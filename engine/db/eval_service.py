@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.config.settings import settings
 from engine.core.badges import compute_badges
-from engine.db.models import AgentProfile, Evaluation, FrontierModel
+from engine.db.models import AgentProfile, Evaluation, FrontierModel, TenantTier
 
 logger = logging.getLogger(__name__)
 
@@ -312,3 +312,60 @@ async def delete_agent_profile(
         .where(AgentProfile.id == profile_id, AgentProfile.tenant_id == tenant_id)
     )
     return result.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Tenant Tier CRUD (Stripe integration)
+# ---------------------------------------------------------------------------
+
+
+async def get_tenant_tier(
+    session: AsyncSession, tenant_id: str
+) -> Optional[TenantTier]:
+    """Get the tier record for a tenant. Returns None if not found."""
+    result = await session.execute(
+        select(TenantTier).where(TenantTier.tenant_id == tenant_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_tenant_tier_by_stripe_customer(
+    session: AsyncSession, stripe_customer_id: str
+) -> Optional[TenantTier]:
+    """Look up a tier row by Stripe customer ID (for webhook handling)."""
+    result = await session.execute(
+        select(TenantTier).where(
+            TenantTier.stripe_customer_id == stripe_customer_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def upsert_tenant_tier(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    tier: str,
+    stripe_customer_id: Optional[str] = None,
+    stripe_subscription_id: Optional[str] = None,
+) -> TenantTier:
+    """Create or update a tenant's subscription tier."""
+    existing = await get_tenant_tier(session, tenant_id)
+    if existing:
+        existing.tier = tier
+        if stripe_customer_id is not None:
+            existing.stripe_customer_id = stripe_customer_id
+        if stripe_subscription_id is not None:
+            existing.stripe_subscription_id = stripe_subscription_id
+        existing.updated_at = datetime.now(timezone.utc)
+    else:
+        existing = TenantTier(
+            tenant_id=tenant_id,
+            tier=tier,
+            stripe_customer_id=stripe_customer_id,
+            stripe_subscription_id=stripe_subscription_id,
+            updated_at=datetime.now(timezone.utc),
+        )
+        session.add(existing)
+    await session.flush()
+    return existing

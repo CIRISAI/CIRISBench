@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Import routers and other necessary components
-from api.routers import pipelines, server, results, he300, he300_spec, ollama, reports, github, ciris_spec, containers, sse
+from api.routers import pipelines, server, results, he300, he300_spec, ollama, reports, github, ciris_spec, containers, sse, stripe_billing
 from utils.logging_config import setup_logging
 from utils.concurrency_monitor import ConcurrencyMonitor
 from utils.langsmith_tracing import init_langsmith, is_langsmith_enabled, get_langsmith_status
@@ -92,6 +92,7 @@ app.include_router(reports.router)
 app.include_router(github.router)
 app.include_router(containers.router)
 app.include_router(sse.router)
+app.include_router(stripe_billing.router)
 
 
 # --- Root Endpoint ---

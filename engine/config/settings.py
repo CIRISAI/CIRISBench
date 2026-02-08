@@ -158,6 +158,33 @@ class Settings(BaseSettings):
         description="Comma-separated allowed CORS origins."
     )
 
+    # --- Stripe ---
+    stripe_secret_key: str = Field(
+        default="",
+        validation_alias='STRIPE_SECRET_KEY',
+        description="Stripe secret API key (sk_live_... or sk_test_...)."
+    )
+    stripe_webhook_secret: str = Field(
+        default="",
+        validation_alias='STRIPE_WEBHOOK_SECRET',
+        description="Stripe webhook endpoint signing secret (whsec_...)."
+    )
+    stripe_pro_price_id: str = Field(
+        default="",
+        validation_alias='STRIPE_PRO_PRICE_ID',
+        description="Stripe Price ID for the Pro monthly subscription."
+    )
+    stripe_success_url: str = Field(
+        default="https://ethicsengine.org/dashboard?upgraded=true",
+        validation_alias='STRIPE_SUCCESS_URL',
+        description="Redirect URL after successful Stripe checkout."
+    )
+    stripe_cancel_url: str = Field(
+        default="https://ethicsengine.org/pricing",
+        validation_alias='STRIPE_CANCEL_URL',
+        description="Redirect URL when user cancels Stripe checkout."
+    )
+
     class Config:
         env_file = '.env'
         env_file_encoding = 'utf-8'
