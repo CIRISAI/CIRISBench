@@ -98,3 +98,50 @@ INSERT INTO frontier_models (model_id, provider, display_name, provider_label, p
     ('xai/grok-3',                'xAI',       'Grok 3',              'xAI',       'openrouter/xai/grok-3'),
     ('cohere/command-r-plus',     'Cohere',    'Command R+',          'Cohere',    'openrouter/cohere/command-r-plus')
 ON CONFLICT (model_id) DO NOTHING;
+
+-- =============================================================================
+-- Agent Profiles (saved agent specs per tenant)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS agent_profiles (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   VARCHAR(64) NOT NULL,
+    name        VARCHAR(128) NOT NULL,
+    spec        JSONB       NOT NULL,
+    is_default  BOOLEAN     NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_profiles_tenant
+    ON agent_profiles (tenant_id, name);
+
+-- =============================================================================
+-- Tenant Tiers (Stripe subscription tracking)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS tenant_tiers (
+    tenant_id              VARCHAR(128) PRIMARY KEY,
+    tier                   VARCHAR(32)  NOT NULL DEFAULT 'community',
+    stripe_customer_id     VARCHAR(128),
+    stripe_subscription_id VARCHAR(128),
+    updated_at             TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_tiers_stripe_customer
+    ON tenant_tiers (stripe_customer_id);
+
+-- =============================================================================
+-- Schema Migrations tracking (used by CIRISNode auto-migrator)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version    VARCHAR(128) PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Mark all init-db tables as already applied so the migrator skips them
+INSERT INTO schema_migrations (version) VALUES
+    ('003_add_agent_profiles'),
+    ('004_add_tenant_tiers')
+ON CONFLICT (version) DO NOTHING;
