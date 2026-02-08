@@ -156,7 +156,12 @@ docker run -p 8080:8080 \
 | `/health` | GET | Health check |
 | `/mcp` | POST | MCP protocol |
 | `/a2a` | POST | A2A protocol |
-| `/api/benchmarks` | GET/POST | Benchmark management |
+| `/api/v1/agentbeats/run` | POST | **Run benchmark (proxy to Engine)** |
+| `/api/v1/agentbeats/status` | GET | Runner status + tier info |
+| `/api/v1/agent-profiles` | GET/POST | Saved agent profiles (CRUD) |
+| `/api/v1/scores` | GET | Leaderboard scores |
+| `/api/v1/evaluations` | GET | Evaluation history |
+| `/api/v1/usage` | GET | Usage + quota info |
 
 ## Agent Protocol Requirements
 
@@ -295,22 +300,21 @@ The container includes `agentbeats.json` manifest:
 - `trace-validation` - Validate agent traces
 - `result-streaming` - Stream benchmark results
 
-## Authentication Flow
+## Authentication
 
-### Incoming Requests (AgentBeats → CIRISBench)
+CIRISBench supports two deployment modes controlled by `AGENTBEATS_MODE`:
+
+| Mode | `AGENTBEATS_MODE` | Auth | Quota |
+|------|-------------------|------|-------|
+| **Standalone** | `true` (default in Docker) | API key via Bearer token | None |
+| **Managed** | unset (ethicsengine.org) | JWT + tiered quotas | Community/Pro/Enterprise |
+
+In standalone mode, set `AGENTBEATS_API_KEY` and the entrypoint wires
+it to the Engine automatically:
 
 ```http
-POST /he300/agentbeats/run
+POST /api/v1/agentbeats/run
 Authorization: Bearer ${AGENTBEATS_API_KEY}
-X-AgentBeats-Run-ID: ${AGENTBEATS_RUN_ID}
-```
-
-### Outgoing Callbacks (CIRISBench → AgentBeats)
-
-```http
-POST ${AGENTBEATS_CALLBACK_URL}
-X-AgentBeats-Signature: sha256=${HMAC_SIGNATURE}
-X-AgentBeats-Run-ID: ${AGENTBEATS_RUN_ID}
 ```
 
 See [auth.md](auth.md) for detailed authentication documentation.
