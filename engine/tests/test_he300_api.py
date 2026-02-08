@@ -3,14 +3,21 @@ HE-300 Batch API Tests
 
 Tests for the /he300/batch endpoint with mocked LLM responses.
 These tests verify the API contract without requiring actual LLM calls.
+
+Note: AUTH_ENABLED is set to false so tests can hit POST endpoints
+without providing JWT tokens.  In production auth is enforced.
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 import sys
 from pathlib import Path
+
+# Disable auth for test isolation (POST endpoints require auth in prod)
+os.environ.setdefault("AUTH_ENABLED", "false")
 
 # Add project root to path
 project_root = Path(__file__).resolve().parents[1]
