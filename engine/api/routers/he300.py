@@ -1937,6 +1937,7 @@ async def run_agentbeats_benchmark(
     import uuid
 
     if not HAS_PARALLEL_RUNNER:
+        logger.error("[BENCHMARK] Parallel runner not available — missing dependencies")
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Parallel runner not available. Install required dependencies."
@@ -1945,11 +1946,18 @@ async def run_agentbeats_benchmark(
     batch_id = f"agentbeats-{uuid.uuid4().hex[:8]}"
     seed = request.random_seed if request.random_seed is not None else random.randint(0, 2**32 - 1)
 
-    logger.info(
-        f"Starting AgentBeats benchmark {batch_id}: "
-        f"agent={request.agent_url}, concurrency={request.concurrency}, "
-        f"sample_size={request.sample_size}, seed={seed}"
-    )
+    logger.info("=" * 70)
+    logger.info("[BENCHMARK] HE-300 AgentBeats run starting")
+    logger.info("[BENCHMARK]   Batch ID       : %s", batch_id)
+    logger.info("[BENCHMARK]   Agent URL      : %s", request.agent_url)
+    logger.info("[BENCHMARK]   Agent Name     : %s", request.agent_name or "(unnamed)")
+    logger.info("[BENCHMARK]   Model          : %s", request.model)
+    logger.info("[BENCHMARK]   Protocol       : %s", request.protocol)
+    logger.info("[BENCHMARK]   Concurrency    : %d", request.concurrency)
+    logger.info("[BENCHMARK]   Sample Size    : %d", request.sample_size)
+    logger.info("[BENCHMARK]   Seed           : %d", seed)
+    logger.info("[BENCHMARK]   Semantic Eval  : %s", request.semantic_evaluation)
+    logger.info("=" * 70)
 
     # Publish SSE event for benchmark start
     publish_event_sync("benchmark_start", {
@@ -1973,13 +1981,17 @@ async def run_agentbeats_benchmark(
         if request.categories is None or cat_key in request.categories:
             scenarios_by_category[cat_key] = scenarios
 
+    logger.info("[BENCHMARK] Loaded %d categories: %s",
+                len(scenarios_by_category),
+                ", ".join(f"{k}({len(v)})" for k, v in scenarios_by_category.items()))
+
     # Perform deterministic sampling
     sampled_scenarios, scenario_ids = sample_scenarios_deterministic(
         all_scenarios=scenarios_by_category,
         seed=seed,
         sample_size=request.sample_size,
-        per_category=request.sample_size // max(len(scenarios_by_category), 1),
     )
+    logger.info("[BENCHMARK] Sampled %d scenarios (seed=%d)", len(sampled_scenarios), seed)
 
     if len(sampled_scenarios) == 0:
         raise HTTPException(
@@ -2020,6 +2032,11 @@ async def run_agentbeats_benchmark(
 
     # Resolve agent specification (v2 typed spec takes precedence)
     resolved_spec = request.resolve_agent_spec()
+    logger.info("[BENCHMARK] Using %s evaluation path (protocol=%s)",
+                "v2 AgentSpec" if resolved_spec else "legacy BatchConfig",
+                resolved_spec.protocol if resolved_spec else request.protocol)
+    logger.info("[BENCHMARK] Sending %d scenarios to %s (concurrency=%d)...",
+                len(scenario_inputs), request.agent_url, request.concurrency)
 
     # Run the benchmark — use v2 path if we have a typed AgentSpec
     try:
@@ -2053,7 +2070,8 @@ async def run_agentbeats_benchmark(
             )
             result = await run_batch(scenario_inputs, batch_config)
     except Exception as e:
-        logger.error(f"Benchmark failed: {e}")
+        import traceback
+        logger.error(f"Benchmark failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Benchmark execution failed: {e}"
@@ -2094,11 +2112,19 @@ async def run_agentbeats_benchmark(
         trace_data["agent_spec"] = spec_dict
     store_trace(batch_id, trace_data)
 
-    logger.info(
-        f"Completed AgentBeats benchmark {batch_id}: "
-        f"{result.correct}/{result.total} correct ({result.accuracy:.2%}), "
-        f"{result.errors} errors, {result.processing_time_ms:.1f}ms"
-    )
+    logger.info("=" * 70)
+    logger.info("[BENCHMARK] HE-300 run COMPLETE — %s", batch_id)
+    logger.info("[BENCHMARK]   Accuracy       : %.2f%% (%d/%d correct)",
+                result.accuracy * 100, result.correct, result.total)
+    logger.info("[BENCHMARK]   Errors         : %d", result.errors)
+    logger.info("[BENCHMARK]   Avg Latency    : %.1f ms", result.avg_latency_ms)
+    logger.info("[BENCHMARK]   Total Time     : %.1f ms (%.1f s)",
+                result.processing_time_ms, result.processing_time_ms / 1000)
+    for cat_name, cat_data in result.categories.items():
+        logger.info("[BENCHMARK]   %-16s: %.1f%% (%d/%d)",
+                    cat_name, cat_data["accuracy"] * 100,
+                    cat_data["correct"], cat_data["total"])
+    logger.info("=" * 70)
 
     # Publish SSE event for benchmark completion
     publish_event_sync("benchmark_complete", {

@@ -300,9 +300,13 @@ async def agent_manifest():
     }
 
 
+_request_count = 0
+
+
 @app.post("/a2a")
 async def handle_a2a(request: JSONRPCRequest):
-    logger.info(f"A2A request: method={request.method}, id={request.id}")
+    global _request_count
+    _request_count += 1
 
     if request.method == "benchmark.evaluate":
         scenario = request.params.get("scenario", "")
@@ -320,7 +324,8 @@ async def handle_a2a(request: JSONRPCRequest):
             # Fallback: look for keywords anywhere
             classification = "unethical" if "UNETHICAL" in response_text.upper() else "ethical"
 
-        logger.info(f"Evaluated {scenario_id}: {classification}")
+        if _request_count % 25 == 0 or _request_count <= 3:
+            logger.info("[AGENT] #%d  %s -> %s", _request_count, scenario_id, classification)
 
         return JSONRPCResponse(
             id=request.id,
@@ -400,10 +405,15 @@ def main():
         logger.error(f"{key_env} not set and no key file found!")
         return
 
-    logger.info(f"Starting Multi-Provider Purple Agent")
-    logger.info(f"  Provider: {CURRENT_PROVIDER}")
-    logger.info(f"  Model: {CURRENT_MODEL}")
-    logger.info(f"  Endpoint: http://{args.host}:{args.port}/a2a")
+    logger.info("=" * 60)
+    logger.info("Multi-Provider Purple Agent (HE-300 Benchmark)")
+    logger.info("=" * 60)
+    logger.info("  Provider : %s", CURRENT_PROVIDER)
+    logger.info("  Model    : %s", CURRENT_MODEL)
+    logger.info("  API Key  : %s...%s", API_KEY[:8], API_KEY[-4:])
+    logger.info("  Endpoint : http://%s:%d/a2a", args.host, args.port)
+    logger.info("  Health   : http://%s:%d/health", args.host, args.port)
+    logger.info("=" * 60)
 
     uvicorn.run(app, host=args.host, port=args.port)
 
