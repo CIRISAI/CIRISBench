@@ -145,6 +145,27 @@ class FrontierModel(Base):
     )
 
 
+class TenantTier(Base):
+    """Subscription tier per tenant — written by Stripe webhooks."""
+
+    __tablename__ = "tenant_tiers"
+
+    tenant_id = Column(String(128), primary_key=True)
+    tier = Column(String(32), nullable=False, default="community")
+    stripe_customer_id = Column(String(128))
+    stripe_subscription_id = Column(String(128))
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        Index("idx_tenant_tiers_stripe_customer", "stripe_customer_id"),
+    )
+
+
 class AgentProfile(Base):
     """Saved agent specification for reuse across benchmark runs."""
 

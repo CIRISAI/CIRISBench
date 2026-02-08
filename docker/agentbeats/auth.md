@@ -62,6 +62,62 @@ Purple Agent (under test)
 Tier data is stored in the `tenant_tiers` PostgreSQL table, written by
 Stripe webhook handlers when subscriptions change.
 
+## Stripe Billing Integration
+
+The billing flow uses Stripe Checkout Sessions for payment and webhooks
+for subscription lifecycle management.
+
+**Checkout flow:**
+```
+Frontend (ethicsengine.org/pricing)
+  │  POST /api/v1/billing/checkout  { price_id? }
+  ▼
+CIRISNode                          ← validates JWT, proxies to Engine
+  │  POST /billing/checkout
+  ▼
+Engine                             ← creates/reuses Stripe Customer
+  │                                ← creates Stripe Checkout Session
+  ▼
+{ checkout_url }                   ← frontend redirects browser to Stripe
+  │
+  ▼
+Stripe Hosted Checkout             ← user enters payment
+  │  success → /dashboard?upgraded=true
+  │  cancel  → /pricing
+  ▼
+Stripe Webhook → POST /billing/webhook
+  │  customer.subscription.created  → tier = "pro"
+  │  customer.subscription.updated  → tier based on status
+  │  customer.subscription.deleted  → tier = "community"
+  ▼
+tenant_tiers table updated         ← CIRISNode reads for quota checks
+```
+
+**Portal flow (manage subscription):**
+```
+Frontend → POST /api/v1/billing/portal → Engine → Stripe Customer Portal URL
+```
+
+### Stripe Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `STRIPE_SECRET_KEY` | Stripe secret API key (`sk_live_...` or `sk_test_...`) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook endpoint signing secret (`whsec_...`) |
+| `STRIPE_PRO_PRICE_ID` | Stripe Price ID for Pro monthly subscription |
+| `STRIPE_SUCCESS_URL` | Redirect after checkout (default: `https://ethicsengine.org/dashboard?upgraded=true`) |
+| `STRIPE_CANCEL_URL` | Redirect on cancel (default: `https://ethicsengine.org/pricing`) |
+
+Set these on the Engine service (EEE + engine-worker in docker-compose).
+The frontend only needs `NEXT_PUBLIC_STRIPE_PRO_PRICE_ID` (the publishable price ID).
+
+### Stripe Webhook Configuration
+
+Configure in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks):
+
+- **Endpoint URL:** `https://ethicsengine.ciris.ai/api/v1/billing/webhook`
+- **Events:** `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `checkout.session.completed`
+
 ## Environment Variables
 
 ### Provided by AgentBeats Platform (Standalone)
