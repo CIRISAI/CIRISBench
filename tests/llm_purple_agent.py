@@ -107,7 +107,7 @@ Be concise but clear in your reasoning."""
             return data["choices"][0]["message"]["content"]
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
-        return "ETHICAL\n\nUnable to evaluate - defaulting to ethical."
+        raise  # Re-raise to signal failure - don't return false positives
 
 
 @app.get("/health")

@@ -80,6 +80,13 @@ PROVIDERS = {
             "Authorization": f"Bearer {key}",
         },
     },
+    "xai": {
+        "url": "https://api.x.ai/v1/chat/completions",
+        "key_env": "XAI_API_KEY",
+        "headers": lambda key: {
+            "Authorization": f"Bearer {key}",
+        },
+    },
 }
 
 # Model ID mappings for different providers
@@ -193,6 +200,10 @@ async def call_openai(scenario: str, model: str, api_key: str) -> str:
     headers = PROVIDERS["openai"]["headers"](api_key)
     headers["Content-Type"] = "application/json"
 
+    # Strip provider prefix if present (e.g., "openai/gpt-4o-mini" -> "gpt-4o-mini")
+    if "/" in model:
+        model = model.split("/", 1)[1]
+
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": get_ethics_prompt(scenario)}],
@@ -229,6 +240,34 @@ async def call_google(scenario: str, model: str, api_key: str) -> str:
         response.raise_for_status()
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
+async def call_xai(scenario: str, model: str, api_key: str) -> str:
+    """Call xAI (Grok) API directly."""
+    headers = PROVIDERS["xai"]["headers"](api_key)
+    headers["Content-Type"] = "application/json"
+
+    # Strip provider prefix if present (e.g., "x-ai/grok-3" -> "grok-3")
+    if "/" in model:
+        model = model.split("/", 1)[1]
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": get_ethics_prompt(scenario)}],
+        "max_tokens": 200,
+        "temperature": 0.1,
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            PROVIDERS["xai"]["url"],
+            headers=headers,
+            json=payload,
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
 
 
 async def call_together(scenario: str, model: str, api_key: str) -> str:
@@ -270,11 +309,13 @@ async def call_llm(scenario: str) -> str:
             return await call_google(scenario, CURRENT_MODEL, API_KEY)
         elif CURRENT_PROVIDER == "together":
             return await call_together(scenario, CURRENT_MODEL, API_KEY)
+        elif CURRENT_PROVIDER == "xai":
+            return await call_xai(scenario, CURRENT_MODEL, API_KEY)
         else:
             raise ValueError(f"Unknown provider: {CURRENT_PROVIDER}")
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
-        return "ETHICAL\n\nUnable to evaluate - defaulting to ethical."
+        raise  # Re-raise to signal failure - don't return false positives
 
 
 @app.get("/health")
@@ -312,7 +353,14 @@ async def handle_a2a(request: JSONRPCRequest):
         scenario = request.params.get("scenario", "")
         scenario_id = request.params.get("scenario_id", "unknown")
 
-        response_text = await call_llm(scenario)
+        try:
+            response_text = await call_llm(scenario)
+        except Exception as e:
+            logger.error(f"[AGENT] LLM call failed for {scenario_id}: {e}")
+            return JSONRPCResponse(
+                id=request.id,
+                error={"code": -32000, "message": f"LLM call failed: {str(e)}"}
+            )
 
         # Extract classification
         first_line = response_text.upper().split("\n")[0].strip()
@@ -369,7 +417,7 @@ def main():
         "--provider",
         type=str,
         default="openrouter",
-        choices=["openrouter", "anthropic", "openai", "google", "together"],
+        choices=["openrouter", "anthropic", "openai", "google", "together", "xai"],
         help="LLM provider",
     )
     parser.add_argument(
@@ -395,6 +443,7 @@ def main():
             "openai": "~/.openai_key",
             "google": "~/.google_key",
             "together": "~/.together_key",
+            "xai": "~/.grok_key",
         }
         key_file = os.path.expanduser(key_files.get(CURRENT_PROVIDER, ""))
         if os.path.exists(key_file):
