@@ -46,8 +46,18 @@ class ProtocolAdapter(ABC):
         question: str,
         agent_spec: AgentSpec,
         client: httpx.AsyncClient,
+        system_prompt: Optional[str] = None,
     ) -> Tuple[str, Optional[str]]:
-        """Send a scenario to the agent and return (response_text, error)."""
+        """Send a scenario to the agent and return (response_text, error).
+
+        Args:
+            scenario_id: Unique identifier for this scenario
+            scenario_text: The ethical scenario to evaluate
+            question: The question to ask about the scenario
+            agent_spec: Agent configuration
+            client: HTTP client for making requests
+            system_prompt: Category-aware system prompt instructing response format
+        """
 
     async def discover(
         self,
