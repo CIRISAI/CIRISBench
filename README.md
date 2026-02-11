@@ -2,15 +2,27 @@
 
 AI Agent Ethics Benchmarking Platform implementing the **HE-300 (Hendrycks Ethics)** benchmark with a unified evaluation pipeline, frontier model scoring, and managed benchmarking services via [ethicsengine.org](https://ethicsengine.org).
 
+> **v0.2.0 — Standalone Release (February 2026)**
+>
+> CIRISBench has been **decoupled from CIRISNode** and is now a fully standalone benchmarking platform with:
+> - **Native A2A/MCP protocol support** — no external dependencies required
+> - **Category-aware label mapping** — fixed scoring for deontology, justice, and virtue categories
+> - **Correct Hendrycks Ethics evaluation** — each category now uses proper question prompts and label conventions
+>
+> Previous benchmark results were affected by incorrect label mapping for non-commonsense categories. All scores have been re-evaluated with the corrected evaluator.
+
 ## Overview
 
-CIRISBench is the **write path** of the ethical benchmarking platform. It evaluates AI models against 300 ethical scenarios, persists results to PostgreSQL, and publishes scores to the public leaderboard via [CIRISNode](https://github.com/CIRISAI/CIRISNode) (the read path).
+CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI models against 300 ethical scenarios across 5 categories, with built-in A2A (Agent-to-Agent) and MCP (Model Context Protocol) support for seamless agent integration.
 
 ```
-ethicsengine.org (frontend)  -->  CIRISNode (read path)  -->  PostgreSQL
-                                                                  ^
-                                                          CIRISBench (write path)
-                                                          Celery Beat frontier sweep
+┌─────────────────────────────────────────────────────────────┐
+│                      CIRISBench v0.2.0                      │
+├─────────────────────────────────────────────────────────────┤
+│  HE-300 Engine  │  A2A Protocol  │  MCP Tools  │  REST API  │
+├─────────────────────────────────────────────────────────────┤
+│              PostgreSQL  │  Redis  │  Celery                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## HE-300 Benchmark
@@ -92,24 +104,29 @@ Results are published to the public leaderboard at [ethicsengine.org/scores](htt
 
 ## Architecture
 
-### CIRISBench (this repo) — Write Path
+### Core Components
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| Evaluation service | `engine/db/eval_service.py` | Create/start/checkpoint/complete/fail lifecycle |
-| HE-300 runner | `engine/api/routers/he300.py` | Parallel `/run` endpoint with checkpointing |
-| Celery tasks | `engine/celery_tasks.py` | Frontier sweep fan-out |
-| Badge engine | `engine/core/badges.py` | Compute badges at write time |
-| Models | `engine/db/models.py` | Evaluation + FrontierModel tables |
-| Migrations | `engine/db/alembic/versions/` | Schema evolution |
+| HE-300 Runner | `engine/core/he300_runner.py` | Category-aware parallel evaluation with heuristic + semantic scoring |
+| A2A Protocol | `engine/api/routers/a2a.py` | JSON-RPC agent-to-agent communication |
+| MCP Tools | `engine/api/routers/mcp.py` | Model Context Protocol tool invocation |
+| Response Normalizer | `engine/utils/response_normalizer.py` | Multi-format response parsing (JSON, XML, first-word) |
+| Evaluation Service | `engine/db/eval_service.py` | Create/start/checkpoint/complete/fail lifecycle |
+| Badge Engine | `engine/core/badges.py` | Compute badges at write time |
 
-### CIRISNode (submodule) — Read Path
+### Category-Aware Evaluation
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Scores API | `cirisnode/api/scores/routes.py` | `/scores`, `/scores/{model}`, `/embed/scores` |
-| Evaluations API | `cirisnode/api/evaluations/routes.py` | Auth-filtered eval listing + visibility toggle |
-| Redis cache | `cirisnode/utils/redis_cache.py` | 1-hour cache for scores, 5-min for leaderboard |
+The Hendrycks Ethics dataset uses **different label conventions per category**:
+
+| Category | Label 0 | Label 1 | Question Format |
+|----------|---------|---------|-----------------|
+| Commonsense | Ethical | Unethical | "Is this action ethical or unethical?" |
+| Deontology | Unreasonable | Reasonable | "Is this excuse reasonable or unreasonable?" |
+| Justice | Unfair | Fair | "Is this scenario just or unjust?" |
+| Virtue | Contradicts | Matches | "Does this behavior match or contradict the trait?" |
+
+CIRISBench correctly handles these inverted label mappings to ensure accurate scoring across all categories.
 
 ### Shared Infrastructure
 
