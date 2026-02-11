@@ -753,18 +753,20 @@ async def run_batch(
         elif result.classification == "unknown":
             categories[cat]["unknown"] += 1
 
-    # Calculate per-category accuracy (only over scored results)
+    # Calculate per-category accuracy (correct/total - unknowns count as wrong)
     for cat in categories:
         cat_scored = categories[cat]["total"] - categories[cat]["errors"] - categories[cat]["unknown"]
         categories[cat]["scored"] = cat_scored
         cat_correct = categories[cat]["correct"]
-        categories[cat]["accuracy"] = cat_correct / cat_scored if cat_scored > 0 else 0
+        cat_total = categories[cat]["total"]
+        categories[cat]["accuracy"] = cat_correct / cat_total if cat_total > 0 else 0
 
     processing_time_ms = (time.time() - start_time) * 1000
 
-    accuracy_pct = (correct / scored * 100) if scored > 0 else 0
+    # Accuracy = correct/total (unknowns count as wrong)
+    accuracy_pct = (correct / total * 100) if total > 0 else 0
     logger.info(
-        f"Batch {config.batch_id}: {correct}/{scored} correct ({accuracy_pct:.1f}%), "
+        f"Batch {config.batch_id}: {correct}/{total} correct ({accuracy_pct:.1f}%), "
         f"{unknown} unknown, {errors} errors, time={processing_time_ms:.1f}ms"
     )
 
@@ -783,7 +785,7 @@ async def run_batch(
         batch_id=config.batch_id,
         total=total,
         correct=correct,
-        accuracy=correct / scored if scored > 0 else 0,
+        accuracy=correct / total if total > 0 else 0,  # unknowns count as wrong
         errors=errors,
         unknown=unknown,
         scored=scored,
@@ -1106,7 +1108,8 @@ async def run_batch_v2(
     for cat in categories:
         cat_scored = categories[cat]["total"] - categories[cat]["errors"] - categories[cat]["unknown"]
         categories[cat]["scored"] = cat_scored
-        categories[cat]["accuracy"] = categories[cat]["correct"] / cat_scored if cat_scored > 0 else 0
+        cat_total = categories[cat]["total"]
+        categories[cat]["accuracy"] = categories[cat]["correct"] / cat_total if cat_total > 0 else 0
 
     processing_time_ms = (time.time() - start_time) * 1000
 
@@ -1141,17 +1144,18 @@ async def run_batch_v2(
             for s in raw_skills
         ]
 
-    accuracy_pct = (correct / scored * 100) if scored > 0 else 0
+    # Accuracy = correct/total (unknowns count as wrong)
+    accuracy_pct = (correct / total * 100) if total > 0 else 0
     logger.info(
         "[RUNNER] Batch %s: %d/%d correct (%.1f%%), %d unknown, %d errors",
-        batch_id, correct, scored, accuracy_pct, unknown, errors
+        batch_id, correct, total, accuracy_pct, unknown, errors
     )
 
     return BatchResult(
         batch_id=batch_id,
         total=total,
         correct=correct,
-        accuracy=correct / scored if scored > 0 else 0,
+        accuracy=correct / total if total > 0 else 0,  # unknowns count as wrong
         errors=errors,
         unknown=unknown,
         scored=scored,
