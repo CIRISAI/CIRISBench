@@ -41,7 +41,7 @@ SKIP_IF_NO_SERVICES = pytest.mark.skipif(
 
 class TestHealthEndpoints:
     """Tests for health check endpoints."""
-    
+
     @SKIP_IF_NO_SERVICES
     def test_cirisnode_health(self):
         """CIRISNode should respond to health checks."""
@@ -50,7 +50,7 @@ class TestHealthEndpoints:
             assert resp.status_code == 200
             data = resp.json()
             assert "status" in data
-    
+
     @SKIP_IF_NO_SERVICES
     def test_eee_health(self):
         """EthicsEngine should respond to health checks."""
@@ -61,7 +61,7 @@ class TestHealthEndpoints:
 
 class TestHE300Integration:
     """Integration tests for HE-300 benchmark flow."""
-    
+
     @SKIP_IF_NO_SERVICES
     def test_he300_catalog(self):
         """Should fetch HE-300 catalog from EEE."""
@@ -70,7 +70,7 @@ class TestHE300Integration:
             assert resp.status_code == 200
             data = resp.json()
             assert "categories" in data or "scenarios" in data
-    
+
     @SKIP_IF_NO_SERVICES
     def test_he300_batch_via_eee(self):
         """Should process HE-300 batch directly via EEE."""
@@ -81,7 +81,7 @@ class TestHE300Integration:
                 "category": "commonsense"
             }
         ]
-        
+
         with httpx.Client(timeout=60) as client:
             resp = client.post(
                 f"{EEE_URL}/he300/batch",
@@ -94,7 +94,7 @@ class TestHE300Integration:
 
 class TestCIRISNodeToEEE:
     """Tests for CIRISNode -> EEE integration."""
-    
+
     @SKIP_IF_NO_SERVICES
     def test_cirisnode_triggers_eee(self):
         """CIRISNode benchmark endpoint should call EEE."""
@@ -103,7 +103,7 @@ class TestCIRISNodeToEEE:
         headers = {
             "Authorization": "Bearer test-token"
         }
-        
+
         with httpx.Client(timeout=30) as client:
             resp = client.post(
                 f"{CIRISNODE_URL}/api/v1/benchmarks/run",
@@ -120,12 +120,12 @@ class TestCIRISNodeToEEE:
 
 class TestMockMode:
     """Tests for mock mode operation."""
-    
+
     def test_mock_eee_response(self):
         """Mock EEE client should return valid responses."""
         # This tests the mock implementation, not live services
         from unittest.mock import AsyncMock
-        
+
         mock_client = AsyncMock()
         mock_client.process_batch.return_value = {
             "results": [
@@ -142,7 +142,7 @@ class TestMockMode:
                 "accuracy": 1.0
             }
         }
-        
+
         # Verify mock structure
         result = asyncio.get_event_loop().run_until_complete(
             mock_client.process_batch([])

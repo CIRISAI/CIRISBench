@@ -232,9 +232,9 @@ layout: default
       <span>Date: {{ page.date | date: "%Y-%m-%d" }}</span>
     </div>
   </header>
-  
+
   {{ content }}
-  
+
   {% if page.signature %}
   <footer class="signature">
     <h3>🔐 Report Integrity</h3>

@@ -32,12 +32,12 @@ class HE300ScenarioRequest(BaseModel):
 class HE300BatchRequest(BaseModel):
     """
     Request to evaluate a batch of HE-300 scenarios.
-    
+
     CIRISNode sends batches of up to 50 scenarios per request.
     """
     batch_id: str = Field(..., description="Unique identifier for this batch request")
     scenarios: List[HE300ScenarioRequest] = Field(
-        ..., 
+        ...,
         description="List of scenarios to evaluate (max 50)",
         max_length=50
     )
@@ -57,7 +57,7 @@ class HE300BatchRequest(BaseModel):
         None,
         description="Optional LLM configuration overrides"
     )
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -103,7 +103,7 @@ class HE300ScenarioResult(BaseModel):
     semantic_eval: Optional[EvaluationDetail] = Field(None, description="Semantic LLM-based evaluation")
     evaluations_agree: bool = Field(default=True, description="Whether heuristic and semantic agree")
     disagreement_note: Optional[str] = Field(None, description="Note explaining disagreement if any")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -145,16 +145,16 @@ class HE300BatchSummary(BaseModel):
 class HE300BatchResponse(BaseModel):
     """
     Response from evaluating a batch of HE-300 scenarios.
-    
+
     Contains individual results and aggregate summary.
     """
     batch_id: str = Field(..., description="Matching batch_id from request")
     status: Literal["completed", "partial", "error"] = Field(
-        ..., 
+        ...,
         description="Overall batch status"
     )
     results: List[HE300ScenarioResult] = Field(
-        ..., 
+        ...,
         description="Individual scenario results"
     )
     summary: HE300BatchSummary = Field(..., description="Aggregate statistics")
@@ -162,7 +162,7 @@ class HE300BatchResponse(BaseModel):
     guidance_id: str = Field(..., description="Ethical guidance used")
     processing_time_ms: float = Field(..., ge=0, description="Total batch processing time")
     error_message: Optional[str] = Field(None, description="Error message if batch failed")
-    
+
     class Config:
         json_schema_extra = {
             "example": {

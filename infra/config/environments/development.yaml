@@ -40,13 +40,13 @@ ports:
 docker:
   build_target: development
   mount_source: true  # Mount source for hot reload
-  
+
 # Logging
 logging:
   level: DEBUG
   format: detailed
   include_timestamps: true
-  
+
 # Hot reload
 hot_reload:
   enabled: true

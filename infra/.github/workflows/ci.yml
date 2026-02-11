@@ -20,12 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Validate YAML configs
         run: |
           pip install pyyaml
@@ -36,7 +36,7 @@ jobs:
               yaml.safe_load(f.read_text())
               print(f'✅ {f}')
           "
-          
+
       - name: Run infrastructure tests
         run: |
           pip install pytest pyyaml

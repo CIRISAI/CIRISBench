@@ -141,9 +141,9 @@ async def github_request(
         "Accept": accept,
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    
+
     url = f"{GITHUB_API_BASE}{endpoint}"
-    
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         if method.upper() == "GET":
             response = await client.get(url, headers=headers)
@@ -157,14 +157,14 @@ async def github_request(
             response = await client.patch(url, headers=headers, json=data)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
-    
+
     return response
 
 
 def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
     """Generate a HuggingFace-style index page for published reports with model cards."""
     reports_json = json.dumps([r.model_dump() for r in reports], indent=2)
-    
+
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -356,7 +356,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
             background: var(--primary);
             color: white;
         }}
-        
+
         /* Model Cards Grid */
         .model-cards {{
             display: grid;
@@ -493,7 +493,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
         .btn-secondary:hover {{
             background: var(--border);
         }}
-        
+
         /* Leaderboard Table */
         .leaderboard {{
             background: var(--bg-card);
@@ -553,7 +553,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
             justify-content: center;
             font-size: 0.875rem;
         }}
-        
+
         /* Empty State */
         .empty-state {{
             text-align: center;
@@ -565,7 +565,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
             margin-bottom: 1rem;
             opacity: 0.5;
         }}
-        
+
         footer {{
             text-align: center;
             padding: 2rem;
@@ -581,7 +581,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
         footer a:hover {{
             text-decoration: underline;
         }}
-        
+
         @media (max-width: 768px) {{
             .navbar {{ padding: 0.5rem 1rem; }}
             .hero {{ padding: 2rem 1rem; }}
@@ -672,8 +672,8 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
         function filterAndRender() {{
             const search = document.getElementById('searchInput').value.toLowerCase();
             const sort = document.getElementById('sortSelect').value;
-            
-            filteredReports = reports.filter(r => 
+
+            filteredReports = reports.filter(r =>
                 r.model_name.toLowerCase().includes(search) ||
                 r.batch_id.toLowerCase().includes(search)
             );
@@ -702,7 +702,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
             }}
 
             empty.style.display = 'none';
-            
+
             if (currentView === 'cards') {{
                 cards.style.display = 'grid';
                 table.style.display = 'none';
@@ -750,7 +750,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
                 const date = new Date(r.published_at).toLocaleDateString();
                 const icon = getModelIcon(r.model_name);
                 const provider = getProvider(r.model_name);
-                
+
                 return `
                     <div class="model-card">
                         <div class="model-card-header">
@@ -792,7 +792,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
                 const date = new Date(r.published_at).toLocaleDateString();
                 const icon = getModelIcon(r.model_name);
                 const provider = getProvider(r.model_name);
-                
+
                 return `<tr>
                     <td><span class="rank ${{rankClass}}">#${{rank}}</span></td>
                     <td><div class="model-cell"><div class="mini-avatar">${{icon}}</div><div><strong>${{r.model_name}}</strong><br><small style="color:var(--text-secondary)">${{provider}}</small></div></div></td>
@@ -833,7 +833,7 @@ def generate_index_html(reports: List[PublishedReport], repo: str) -> str:
 
 def generate_root_index_html(repo: str, reports_path: str) -> str:
     """Generate a HuggingFace-style root index with model hub, popular models, and leaderboard.
-    
+
     Features:
     - Model cards with ethics scores
     - Leaderboard table view
@@ -842,7 +842,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
     - Search and filtering
     """
     owner, repo_name = repo.split("/")
-    
+
     # Baked-in popular models list (from HuggingFace and Ollama)
     popular_models = [
         {"name": "gpt-4o", "provider": "OpenAI", "category": "Proprietary", "icon": "&#129302;", "params": "1.7T", "tags": ["chat", "reasoning"]},
@@ -876,9 +876,9 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         {"name": "yi:34b", "provider": "01.AI", "category": "Open Source", "icon": "&#127383;", "params": "34B", "tags": ["bilingual"]},
         {"name": "solar:10.7b", "provider": "Upstage", "category": "Open Source", "icon": "&#9728;", "params": "10.7B", "tags": ["efficient"]},
     ]
-    
+
     popular_models_json = json.dumps(popular_models)
-    
+
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -915,7 +915,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             color: var(--text);
             line-height: 1.5;
         }}
-        
+
         /* Navbar */
         .navbar {{
             background: var(--bg-secondary);
@@ -953,7 +953,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         }}
         .nav-link:hover {{ color: var(--text); background: var(--bg-card); }}
         .nav-link.active {{ color: var(--text); background: var(--primary); }}
-        
+
         /* Hero */
         .hero {{
             background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 50%, #ec4899 100%);
@@ -977,10 +977,10 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             border-radius: 2rem;
             font-size: 0.8rem;
         }}
-        
+
         /* Container */
         .container {{ max-width: 1400px; margin: 0 auto; padding: 1.5rem; }}
-        
+
         /* Section Headers */
         .section-header {{
             display: flex;
@@ -1004,7 +1004,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             font-size: 0.75rem;
             color: var(--text-secondary);
         }}
-        
+
         /* Stats Row */
         .stats-row {{
             display: grid;
@@ -1021,7 +1021,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         }}
         .stat-value {{ font-size: 1.75rem; font-weight: 700; color: var(--primary); }}
         .stat-label {{ font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }}
-        
+
         /* Tabs */
         .tabs {{
             display: flex;
@@ -1046,7 +1046,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         }}
         .tab:hover {{ color: var(--text); }}
         .tab.active {{ background: var(--bg-card); color: var(--text); }}
-        
+
         /* Search & Filters */
         .search-filters {{
             display: flex;
@@ -1073,7 +1073,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             border-radius: 0.5rem;
             font-size: 0.875rem;
         }}
-        
+
         /* Model Cards Grid */
         .model-grid {{
             display: grid;
@@ -1175,7 +1175,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         .btn-secondary {{ background: var(--bg-secondary); color: var(--text); border: 1px solid var(--border); }}
         .btn-secondary:hover {{ background: var(--border); }}
         .btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
-        
+
         /* Leaderboard Table */
         .leaderboard {{
             background: var(--bg-card);
@@ -1217,14 +1217,14 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             justify-content: center;
             font-size: 0.8rem;
         }}
-        
+
         /* Popular Models Section */
         .popular-section {{
             margin-top: 2rem;
             padding-top: 2rem;
             border-top: 1px solid var(--border);
         }}
-        
+
         /* Loading State */
         .loading {{
             text-align: center;
@@ -1241,7 +1241,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             margin: 0 auto 1rem;
         }}
         @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
-        
+
         /* Empty State */
         .empty-state {{
             text-align: center;
@@ -1251,7 +1251,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             border-radius: 0.75rem;
         }}
         .empty-icon {{ font-size: 3rem; margin-bottom: 0.75rem; opacity: 0.5; }}
-        
+
         /* Footer */
         footer {{
             text-align: center;
@@ -1263,7 +1263,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         }}
         footer a {{ color: var(--accent); text-decoration: none; }}
         footer a:hover {{ text-decoration: underline; }}
-        
+
         @media (max-width: 768px) {{
             .navbar {{ flex-wrap: wrap; padding: 0.5rem 1rem; }}
             .nav-links {{ width: 100%; justify-content: center; margin: 0.5rem 0 0 0; }}
@@ -1398,7 +1398,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             }} catch (e) {{
                 console.log('No reports yet');
             }}
-            
+
             document.getElementById('loadingState').style.display = 'none';
             renderStats();
             filterAndRender();
@@ -1426,21 +1426,21 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             currentTab = tab;
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
             event.target.classList.add('active');
-            
+
             ['leaderboardTab', 'modelsTab', 'popularTab'].forEach(t => {{
                 document.getElementById(t).style.display = 'none';
             }});
             document.getElementById(tab + 'Tab').style.display = 'block';
-            
+
             if (tab === 'models') renderModels();
         }}
 
         function filterAndRender() {{
             const search = document.getElementById('searchInput').value.toLowerCase();
             const sort = document.getElementById('sortSelect').value;
-            
+
             filteredReports = reports.filter(r => r.model_name.toLowerCase().includes(search));
-            
+
             switch(sort) {{
                 case 'accuracy-desc': filteredReports.sort((a, b) => b.accuracy - a.accuracy); break;
                 case 'accuracy-asc': filteredReports.sort((a, b) => a.accuracy - b.accuracy); break;
@@ -1449,19 +1449,19 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             }}
 
             document.getElementById('leaderboardCount').textContent = filteredReports.length;
-            
+
             if (filteredReports.length === 0) {{
                 document.getElementById('leaderboardContent').innerHTML = '';
                 document.getElementById('emptyState').style.display = 'block';
                 return;
             }}
-            
+
             document.getElementById('emptyState').style.display = 'none';
             renderLeaderboard();
         }}
 
         function getAccClass(acc) {{ return acc >= 0.7 ? 'high' : acc >= 0.5 ? 'medium' : 'low'; }}
-        
+
         function getModelIcon(name) {{
             const n = name.toLowerCase();
             if (n.includes('gpt')) return '&#129302;';
@@ -1498,7 +1498,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
                 const date = new Date(r.published_at).toLocaleDateString();
                 const icon = getModelIcon(r.model_name);
                 const provider = getProvider(r.model_name);
-                
+
                 return `<tr>
                     <td><span class="rank ${{rankClass}}">#${{rank}}</span></td>
                     <td><div class="model-cell"><div class="mini-avatar">${{icon}}</div><div><strong>${{r.model_name}}</strong><br><small style="color:var(--text-secondary)">${{provider}}</small></div></div></td>
@@ -1524,15 +1524,15 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
                     modelMap[r.model_name] = r;
                 }}
             }});
-            
+
             const models = Object.values(modelMap).sort((a, b) => b.accuracy - a.accuracy);
-            
+
             document.getElementById('modelsContent').innerHTML = models.map(r => {{
                 const acc = (r.accuracy * 100).toFixed(1);
                 const accClass = getAccClass(r.accuracy);
                 const icon = getModelIcon(r.model_name);
                 const provider = getProvider(r.model_name);
-                
+
                 return `
                     <div class="model-card has-report">
                         <div class="model-card-header">
@@ -1560,14 +1560,14 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
             const search = document.getElementById('popularSearchInput').value.toLowerCase();
             const category = document.getElementById('categoryFilter').value;
             const provider = document.getElementById('providerFilter').value;
-            
+
             const filtered = popularModels.filter(m => {{
                 const matchSearch = m.name.toLowerCase().includes(search) || m.provider.toLowerCase().includes(search);
                 const matchCategory = !category || m.category === category;
                 const matchProvider = !provider || m.provider === provider;
                 return matchSearch && matchCategory && matchProvider;
             }});
-            
+
             renderPopularModels(filtered);
         }}
 
@@ -1576,18 +1576,18 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
         function renderPopularModels(models) {{
             // Check which models have reports
             const testedModels = new Set(reports.map(r => r.model_name.toLowerCase()));
-            
+
             document.getElementById('popularContent').innerHTML = models.map(m => {{
                 const tested = testedModels.has(m.name.toLowerCase());
                 const report = reports.find(r => r.model_name.toLowerCase() === m.name.toLowerCase());
-                
+
                 let scoreHtml = '<div class="score-value pending">Not tested</div>';
                 if (tested && report) {{
                     const acc = (report.accuracy * 100).toFixed(1);
                     const accClass = getAccClass(report.accuracy);
                     scoreHtml = `<div class="score-value ${{accClass}}">${{acc}}%</div>`;
                 }}
-                
+
                 return `
                     <div class="model-card ${{tested ? 'has-report' : 'no-report'}}">
                         <div class="model-card-header">
@@ -1605,7 +1605,7 @@ def generate_root_index_html(repo: str, reports_path: str) -> str:
                                 ${{m.tags.map(t => `<span class="tag">${{t}}</span>`).join('')}}
                             </div>
                             <div class="model-actions">
-                                ${{tested && report ? 
+                                ${{tested && report ?
                                     `<a href="${{report.pages_url}}" class="btn btn-primary" target="_blank">View Report</a>` :
                                     `<button class="btn btn-secondary" disabled>Not Benchmarked</button>`
                                 }}
@@ -1654,7 +1654,7 @@ async def get_config():
     config = load_github_config()
     if not config:
         return {"configured": False}
-    
+
     return {
         "configured": True,
         "repo_full_name": config.repo_full_name,
@@ -1677,7 +1677,7 @@ async def set_config(config: GitHubConfig):
                 detail="Invalid GitHub token"
             )
         user_data = response.json()
-        
+
         # Validate repo access
         owner, repo = config.repo_full_name.split("/")
         response = await github_request("GET", f"/repos/{owner}/{repo}", config.token)
@@ -1691,9 +1691,9 @@ async def set_config(config: GitHubConfig):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot access repository: {response.text}"
             )
-        
+
         repo_data = response.json()
-        
+
         # Check write permissions
         permissions = repo_data.get("permissions", {})
         if not permissions.get("push", False):
@@ -1701,9 +1701,9 @@ async def set_config(config: GitHubConfig):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Token does not have write access to this repository"
             )
-        
+
         save_github_config(config)
-        
+
         return {
             "status": "configured",
             "user": user_data.get("login"),
@@ -1711,7 +1711,7 @@ async def set_config(config: GitHubConfig):
             "permissions": permissions,
             "has_pages": repo_data.get("has_pages", False)
         }
-        
+
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1736,20 +1736,20 @@ async def list_repos():
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured. Please set up GitHub credentials first."
         )
-    
+
     try:
         response = await github_request(
             "GET",
             "/user/repos?sort=updated&per_page=100",
             config.token
         )
-        
+
         if response.status_code != 200:
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"GitHub API error: {response.text}"
             )
-        
+
         repos = []
         for repo in response.json():
             # Check if Pages is enabled
@@ -1757,7 +1757,7 @@ async def list_repos():
             pages_url = None
             if has_pages:
                 pages_url = f"https://{repo['owner']['login']}.github.io/{repo['name']}/"
-            
+
             repos.append(GitHubRepo(
                 full_name=repo["full_name"],
                 name=repo["name"],
@@ -1770,9 +1770,9 @@ async def list_repos():
                 pages_url=pages_url,
                 permissions=repo.get("permissions", {})
             ))
-        
+
         return repos
-        
+
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1789,17 +1789,17 @@ async def get_pages_status(owner: str, repo: str):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured"
         )
-    
+
     try:
         response = await github_request(
             "GET",
             f"/repos/{owner}/{repo}/pages",
             config.token
         )
-        
+
         if response.status_code == 404:
             return {"enabled": False, "message": "GitHub Pages not enabled for this repository"}
-        
+
         if response.status_code == 200:
             data = response.json()
             return {
@@ -1809,9 +1809,9 @@ async def get_pages_status(owner: str, repo: str):
                 "status": data.get("status"),
                 "build_type": data.get("build_type")
             }
-        
+
         return {"enabled": False, "error": response.text}
-        
+
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1828,7 +1828,7 @@ async def enable_pages(owner: str, repo: str, branch: str = "gh-pages"):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured"
         )
-    
+
     try:
         # First, ensure the branch exists
         response = await github_request(
@@ -1836,25 +1836,25 @@ async def enable_pages(owner: str, repo: str, branch: str = "gh-pages"):
             f"/repos/{owner}/{repo}/branches/{branch}",
             config.token
         )
-        
+
         if response.status_code == 404:
             # Need to create the branch - get default branch first
             response = await github_request("GET", f"/repos/{owner}/{repo}", config.token)
             if response.status_code != 200:
                 raise HTTPException(status_code=400, detail="Cannot access repository")
-            
+
             default_branch = response.json().get("default_branch", "main")
-            
+
             # Get the SHA of the default branch
             response = await github_request(
                 "GET",
                 f"/repos/{owner}/{repo}/git/ref/heads/{default_branch}",
                 config.token
             )
-            
+
             if response.status_code == 200:
                 sha = response.json()["object"]["sha"]
-                
+
                 # Create the new branch
                 response = await github_request(
                     "POST",
@@ -1862,10 +1862,10 @@ async def enable_pages(owner: str, repo: str, branch: str = "gh-pages"):
                     config.token,
                     {"ref": f"refs/heads/{branch}", "sha": sha}
                 )
-                
+
                 if response.status_code not in [200, 201]:
                     logger.warning(f"Failed to create branch: {response.text}")
-        
+
         # Enable Pages
         response = await github_request(
             "POST",
@@ -1879,7 +1879,7 @@ async def enable_pages(owner: str, repo: str, branch: str = "gh-pages"):
                 "build_type": "legacy"
             }
         )
-        
+
         if response.status_code in [200, 201]:
             data = response.json()
             return {
@@ -1895,7 +1895,7 @@ async def enable_pages(owner: str, repo: str, branch: str = "gh-pages"):
                 status_code=response.status_code,
                 detail=f"Failed to enable Pages: {response.text}"
             )
-            
+
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1912,50 +1912,50 @@ async def deploy_reports(request: DeploymentRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured. Please set up GitHub credentials first."
         )
-    
+
     owner, repo = config.repo_full_name.split("/")
     deployed_reports = []
     failed_reports = []
     published_reports = []
-    
+
     # Load each report and prepare for upload
     for report_id in request.report_ids:
         try:
             # Find the report file and metadata
             meta_file = None
             report_file = None
-            
+
             for f in REPORTS_DIR.glob(f"report_*_{report_id}.meta.json"):
                 meta_file = f
                 break
-            
+
             if not meta_file:
                 failed_reports.append({"report_id": report_id, "error": "Report not found"})
                 continue
-            
+
             # Load metadata
             meta_data = json.loads(meta_file.read_text())
             report_path = Path(meta_data.get("file_path", ""))
-            
+
             if not report_path.exists():
                 # Try to find by pattern
                 for f in REPORTS_DIR.glob(f"report_*_{report_id}.*"):
                     if not f.name.endswith(".meta.json"):
                         report_path = f
                         break
-            
+
             if not report_path.exists():
                 failed_reports.append({"report_id": report_id, "error": "Report file not found"})
                 continue
-            
+
             # Read report content
             content = report_path.read_bytes()
             content_b64 = base64.b64encode(content).decode()
-            
+
             # Determine file path in repo
             file_name = report_path.name
             repo_path = f"{config.target_path}/{file_name}"
-            
+
             # Check if file exists (to get SHA for update)
             existing_sha = None
             response = await github_request(
@@ -1965,7 +1965,7 @@ async def deploy_reports(request: DeploymentRequest):
             )
             if response.status_code == 200:
                 existing_sha = response.json().get("sha")
-            
+
             # Create or update file
             commit_data = {
                 "message": request.commit_message or f"Deploy HE-300 report {report_id}",
@@ -1974,26 +1974,26 @@ async def deploy_reports(request: DeploymentRequest):
             }
             if existing_sha:
                 commit_data["sha"] = existing_sha
-            
+
             response = await github_request(
                 "PUT",
                 f"/repos/{owner}/{repo}/contents/{repo_path}",
                 config.token,
                 commit_data
             )
-            
+
             if response.status_code in [200, 201]:
                 deployed_reports.append(report_id)
-                
+
                 # Build published report entry
                 ext = report_path.suffix.lower()
                 pages_base = f"https://{owner}.github.io/{repo}"
-                
+
                 # Extract accuracy from metadata
                 accuracy = meta_data.get("accuracy", 0.0)
                 batch_id = meta_data.get("batch_id", "unknown")
                 model_name = meta_data.get("model_name", "unknown")
-                
+
                 published_reports.append(PublishedReport(
                     report_id=report_id,
                     batch_id=batch_id,
@@ -2010,11 +2010,11 @@ async def deploy_reports(request: DeploymentRequest):
                     "report_id": report_id,
                     "error": f"GitHub API error: {response.status_code}"
                 })
-                
+
         except Exception as e:
             logger.exception(f"Failed to deploy report {report_id}")
             failed_reports.append({"report_id": report_id, "error": str(e)})
-    
+
     # Generate and upload index if requested
     index_url = None
     if request.generate_index and published_reports:
@@ -2022,7 +2022,7 @@ async def deploy_reports(request: DeploymentRequest):
             # Load existing index to merge
             existing_reports = []
             index_path = f"{config.target_path}/index.html"
-            
+
             response = await github_request(
                 "GET",
                 f"/repos/{owner}/{repo}/contents/{config.target_path}/reports.json?ref={config.target_branch}",
@@ -2033,17 +2033,17 @@ async def deploy_reports(request: DeploymentRequest):
                 existing_content = base64.b64decode(data["content"]).decode()
                 existing_data = json.loads(existing_content)
                 existing_reports = [PublishedReport(**r) for r in existing_data.get("reports", [])]
-            
+
             # Merge reports (update existing, add new)
             reports_by_id = {r.report_id: r for r in existing_reports}
             for r in published_reports:
                 reports_by_id[r.report_id] = r
             all_reports = list(reports_by_id.values())
-            
+
             # Generate index HTML
             index_html = generate_index_html(all_reports, config.repo_full_name)
             index_b64 = base64.b64encode(index_html.encode()).decode()
-            
+
             # Upload index.html
             existing_sha = None
             response = await github_request(
@@ -2053,7 +2053,7 @@ async def deploy_reports(request: DeploymentRequest):
             )
             if response.status_code == 200:
                 existing_sha = response.json().get("sha")
-            
+
             commit_data = {
                 "message": "Update HE-300 reports index",
                 "content": index_b64,
@@ -2061,24 +2061,24 @@ async def deploy_reports(request: DeploymentRequest):
             }
             if existing_sha:
                 commit_data["sha"] = existing_sha
-            
+
             response = await github_request(
                 "PUT",
                 f"/repos/{owner}/{repo}/contents/{index_path}",
                 config.token,
                 commit_data
             )
-            
+
             if response.status_code in [200, 201]:
                 index_url = f"https://{owner}.github.io/{repo}/{config.target_path}/"
-            
+
             # Also save reports.json for future merging
             reports_json = json.dumps({
                 "reports": [r.model_dump() for r in all_reports],
                 "last_updated": datetime.now(timezone.utc).isoformat()
             }, indent=2)
             reports_json_b64 = base64.b64encode(reports_json.encode()).decode()
-            
+
             existing_sha = None
             response = await github_request(
                 "GET",
@@ -2087,7 +2087,7 @@ async def deploy_reports(request: DeploymentRequest):
             )
             if response.status_code == 200:
                 existing_sha = response.json().get("sha")
-            
+
             commit_data = {
                 "message": "Update reports manifest",
                 "content": reports_json_b64,
@@ -2095,19 +2095,19 @@ async def deploy_reports(request: DeploymentRequest):
             }
             if existing_sha:
                 commit_data["sha"] = existing_sha
-            
+
             await github_request(
                 "PUT",
                 f"/repos/{owner}/{repo}/contents/{config.target_path}/reports.json",
                 config.token,
                 commit_data
             )
-            
+
             # IMPORTANT: Also create a root index.html that redirects to reports
             # This ensures GitHub Pages shows the reports instead of README.md
             root_index_html = generate_root_index_html(config.repo_full_name, config.target_path)
             root_index_b64 = base64.b64encode(root_index_html.encode()).decode()
-            
+
             existing_sha = None
             response = await github_request(
                 "GET",
@@ -2116,7 +2116,7 @@ async def deploy_reports(request: DeploymentRequest):
             )
             if response.status_code == 200:
                 existing_sha = response.json().get("sha")
-            
+
             commit_data = {
                 "message": "Update root index for GitHub Pages",
                 "content": root_index_b64,
@@ -2124,22 +2124,22 @@ async def deploy_reports(request: DeploymentRequest):
             }
             if existing_sha:
                 commit_data["sha"] = existing_sha
-            
+
             await github_request(
                 "PUT",
                 f"/repos/{owner}/{repo}/contents/index.html",
                 config.token,
                 commit_data
             )
-            
+
             # Update the index_url to point to root
             index_url = f"https://{owner}.github.io/{repo}/"
-            
+
         except Exception as e:
             logger.exception("Failed to generate index")
-    
+
     pages_base = f"https://{owner}.github.io/{repo}"
-    
+
     return DeploymentResult(
         status="success" if deployed_reports else "failed",
         deployed_reports=deployed_reports,
@@ -2158,27 +2158,27 @@ async def list_published_reports():
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured"
         )
-    
+
     owner, repo = config.repo_full_name.split("/")
-    
+
     try:
         response = await github_request(
             "GET",
             f"/repos/{owner}/{repo}/contents/{config.target_path}/reports.json?ref={config.target_branch}",
             config.token
         )
-        
+
         if response.status_code == 404:
             return {"reports": [], "total": 0}
-        
+
         if response.status_code == 200:
             data = response.json()
             content = base64.b64decode(data["content"]).decode()
             reports_data = json.loads(content)
             return reports_data
-        
+
         return {"reports": [], "total": 0, "error": response.text}
-        
+
     except Exception as e:
         logger.exception("Failed to list published reports")
         return {"reports": [], "total": 0, "error": str(e)}
@@ -2193,9 +2193,9 @@ async def unpublish_report(report_id: str):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="GitHub not configured"
         )
-    
+
     owner, repo = config.repo_full_name.split("/")
-    
+
     try:
         # Find the file in the repo
         response = await github_request(
@@ -2203,21 +2203,21 @@ async def unpublish_report(report_id: str):
             f"/repos/{owner}/{repo}/contents/{config.target_path}?ref={config.target_branch}",
             config.token
         )
-        
+
         if response.status_code != 200:
             raise HTTPException(status_code=404, detail="Reports directory not found")
-        
+
         files = response.json()
         target_file = None
-        
+
         for f in files:
             if report_id in f["name"] and not f["name"].endswith(".json"):
                 target_file = f
                 break
-        
+
         if not target_file:
             raise HTTPException(status_code=404, detail="Report not found in repository")
-        
+
         # Delete the file
         response = await github_request(
             "DELETE",
@@ -2229,35 +2229,35 @@ async def unpublish_report(report_id: str):
                 "branch": config.target_branch
             }
         )
-        
+
         if response.status_code != 200:
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Failed to delete: {response.text}"
             )
-        
+
         # Update reports.json
         response = await github_request(
             "GET",
             f"/repos/{owner}/{repo}/contents/{config.target_path}/reports.json?ref={config.target_branch}",
             config.token
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             content = base64.b64decode(data["content"]).decode()
             reports_data = json.loads(content)
-            
+
             # Remove the report
             reports_data["reports"] = [
-                r for r in reports_data["reports"] 
+                r for r in reports_data["reports"]
                 if r.get("report_id") != report_id
             ]
             reports_data["last_updated"] = datetime.now(timezone.utc).isoformat()
-            
+
             # Update the file
             new_content = base64.b64encode(json.dumps(reports_data, indent=2).encode()).decode()
-            
+
             await github_request(
                 "PUT",
                 f"/repos/{owner}/{repo}/contents/{config.target_path}/reports.json",
@@ -2269,12 +2269,12 @@ async def unpublish_report(report_id: str):
                     "branch": config.target_branch
                 }
             )
-            
+
             # Regenerate index
             all_reports = [PublishedReport(**r) for r in reports_data["reports"]]
             index_html = generate_index_html(all_reports, config.repo_full_name)
             index_b64 = base64.b64encode(index_html.encode()).decode()
-            
+
             response = await github_request(
                 "GET",
                 f"/repos/{owner}/{repo}/contents/{config.target_path}/index.html?ref={config.target_branch}",
@@ -2293,9 +2293,9 @@ async def unpublish_report(report_id: str):
                         "branch": config.target_branch
                     }
                 )
-        
+
         return {"status": "removed", "report_id": report_id}
-        
+
     except HTTPException:
         raise
     except Exception as e:

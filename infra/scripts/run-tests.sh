@@ -115,91 +115,91 @@ fi
 
 run_cirisnode_tests() {
     local test_dir="$SUBMODULES_DIR/cirisnode"
-    
+
     if [ ! -d "$test_dir" ]; then
         log_warn "CIRISNode not found at $test_dir"
         return 1
     fi
-    
+
     log_info "Running CIRISNode tests..."
     cd "$test_dir"
-    
+
     # Install dependencies if needed
     pip install -q -r requirements.txt 2>/dev/null || true
     pip install -q pytest pytest-asyncio pytest-cov 2>/dev/null || true
-    
+
     # Set environment
     export EEE_ENABLED=false
     export JWT_SECRET=test-secret
-    
+
     pytest tests/ $PYTEST_ARGS "$@"
     local result=$?
-    
+
     cd "$ROOT_DIR"
     return $result
 }
 
 run_eee_tests() {
     local test_dir="$SUBMODULES_DIR/ethicsengine"
-    
+
     if [ ! -d "$test_dir" ]; then
         log_warn "EthicsEngine not found at $test_dir"
         return 1
     fi
-    
+
     log_info "Running EthicsEngine tests..."
     cd "$test_dir"
-    
+
     # Install dependencies if needed
     pip install -q -r requirements.txt 2>/dev/null || true
     pip install -q pytest pytest-asyncio pytest-cov 2>/dev/null || true
-    
+
     # Set environment
     export FF_MOCK_LLM=true
     export HE300_ENABLED=true
-    
+
     pytest tests/ $PYTEST_ARGS "$@"
     local result=$?
-    
+
     cd "$ROOT_DIR"
     return $result
 }
 
 run_integration_tests() {
     log_info "Running integration tests..."
-    
+
     cd "$ROOT_DIR"
     pip install -q pytest pytest-asyncio httpx 2>/dev/null || true
-    
+
     pytest tests/test_integration.py $PYTEST_ARGS "$@"
 }
 
 run_e2e_tests() {
     log_info "Running E2E tests..."
-    
+
     cd "$ROOT_DIR"
     pip install -q pytest pytest-asyncio httpx 2>/dev/null || true
-    
+
     pytest tests/test_e2e_he300.py $PYTEST_ARGS "$@"
 }
 
 run_lint() {
     log_info "Running linters..."
-    
+
     pip install -q ruff black isort mypy 2>/dev/null || true
-    
+
     local failed=false
-    
+
     if [ -d "$SUBMODULES_DIR/cirisnode" ]; then
         log_info "Linting CIRISNode..."
         ruff check "$SUBMODULES_DIR/cirisnode/cirisnode" || failed=true
     fi
-    
+
     if [ -d "$SUBMODULES_DIR/ethicsengine" ]; then
         log_info "Linting EthicsEngine..."
         ruff check "$SUBMODULES_DIR/ethicsengine/api" "$SUBMODULES_DIR/ethicsengine/core" || failed=true
     fi
-    
+
     if [ "$failed" = true ]; then
         return 1
     fi
@@ -207,15 +207,15 @@ run_lint() {
 
 run_format() {
     log_info "Running formatters..."
-    
+
     pip install -q black isort 2>/dev/null || true
-    
+
     if [ -d "$SUBMODULES_DIR/cirisnode" ]; then
         log_info "Formatting CIRISNode..."
         black "$SUBMODULES_DIR/cirisnode/cirisnode" "$SUBMODULES_DIR/cirisnode/tests"
         isort "$SUBMODULES_DIR/cirisnode/cirisnode" "$SUBMODULES_DIR/cirisnode/tests"
     fi
-    
+
     if [ -d "$SUBMODULES_DIR/ethicsengine" ]; then
         log_info "Formatting EthicsEngine..."
         black "$SUBMODULES_DIR/ethicsengine/api" "$SUBMODULES_DIR/ethicsengine/core" "$SUBMODULES_DIR/ethicsengine/tests"

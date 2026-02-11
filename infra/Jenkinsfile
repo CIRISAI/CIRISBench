@@ -15,26 +15,26 @@
 
 pipeline {
     agent any
-    
+
     options {
         timeout(time: 2, unit: 'HOURS')
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timestamps()
     }
-    
+
     environment {
         // Docker Registry
         DOCKER_REGISTRY = credentials('docker-registry-url')
         DOCKER_ORG = 'rng-ops'
-        
+
         // Git
         GIT_HASH = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-        
+
         // Python
         PYTHON_VERSION = '3.12'
     }
-    
+
     parameters {
         choice(
             name: 'ENVIRONMENT',
@@ -67,22 +67,22 @@ pipeline {
             description: 'EthicsEngine branch to build'
         )
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-                
+
                 script {
                     // Read version
                     env.VERSION = readFile('VERSION').trim()
                     env.IMAGE_TAG = params.IMAGE_TAG ?: env.VERSION
                 }
-                
+
                 echo "Building version: ${env.VERSION}"
             }
         }
-        
+
         stage('Setup Submodules') {
             steps {
                 sh '''
@@ -93,7 +93,7 @@ pipeline {
                 '''
             }
         }
-        
+
         stage('Test') {
             parallel {
                 stage('CIRISNode Tests') {
@@ -104,10 +104,10 @@ pipeline {
                                 . .venv/bin/activate
                                 pip install -r requirements.txt
                                 pip install pytest pytest-asyncio pytest-cov
-                                
+
                                 export EEE_ENABLED=false
                                 export JWT_SECRET=test-secret
-                                
+
                                 pytest tests/ -v --junitxml=test-results-cirisnode.xml
                             '''
                         }
@@ -118,7 +118,7 @@ pipeline {
                         }
                     }
                 }
-                
+
                 stage('EthicsEngine Tests') {
                     steps {
                         dir('submodules/ethicsengine') {
@@ -127,9 +127,9 @@ pipeline {
                                 . .venv/bin/activate
                                 pip install -r requirements.txt
                                 pip install pytest pytest-asyncio pytest-cov
-                                
+
                                 export FF_MOCK_LLM=true
-                                
+
                                 pytest tests/ -v --junitxml=test-results-eee.xml
                             '''
                         }
@@ -142,7 +142,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build Images') {
             steps {
                 script {
@@ -152,7 +152,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Push Images') {
             when {
                 anyOf {
@@ -169,7 +169,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Deploy to Staging') {
             when {
                 expression { params.ENVIRONMENT == 'staging' }
@@ -178,7 +178,7 @@ pipeline {
                 sh "./scripts/deploy.sh staging --tag ${IMAGE_TAG}"
             }
         }
-        
+
         stage('Deploy to Production') {
             when {
                 expression { params.ENVIRONMENT == 'production' }
@@ -188,7 +188,7 @@ pipeline {
                 sh "./scripts/deploy.sh production --tag ${IMAGE_TAG}"
             }
         }
-        
+
         stage('Run Benchmarks') {
             when {
                 expression { params.RUN_BENCHMARKS }
@@ -207,7 +207,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()

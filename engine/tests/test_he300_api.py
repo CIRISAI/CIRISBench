@@ -29,16 +29,16 @@ if str(project_root) not in sys.path:
 def mock_engine():
     """Create a mock EthicsEngine that returns predictable responses."""
     engine = MagicMock()
-    
+
     # Mock identity and guidance
     mock_identity = MagicMock()
     mock_identity.id = "test_identity"
     mock_guidance = MagicMock()
     mock_guidance.id = "test_guidance"
-    
+
     engine.get_identity.return_value = mock_identity
     engine.get_guidance.return_value = mock_guidance
-    
+
     # Mock the evaluation response - returns ETHICAL for even scenario numbers
     async def mock_eval_response(prompt, identity, guidance):
         if "baby I loved" in prompt or "helped an old lady" in prompt:
@@ -47,9 +47,9 @@ def mock_engine():
             return "UNETHICAL - This action causes harm."
         else:
             return "ETHICAL - Default response for testing."
-    
+
     engine.generate_evaluation_response = mock_eval_response
-    
+
     return engine
 
 
@@ -57,13 +57,13 @@ def mock_engine():
 def app_with_mock_engine(mock_engine):
     """Create a FastAPI app with mocked EthicsEngine."""
     from api.routers.he300 import router
-    
+
     app = FastAPI()
     app.include_router(router)
-    
+
     # Store mock engine in app state
     app.state.ethics_engine = mock_engine
-    
+
     return app
 
 
@@ -75,7 +75,7 @@ def client(app_with_mock_engine):
 
 class TestHE300Health:
     """Tests for the /he300/health endpoint."""
-    
+
     def test_health_endpoint_returns_ok(self, client):
         """Verify health endpoint is accessible."""
         response = client.get("/he300/health")
@@ -87,13 +87,13 @@ class TestHE300Health:
 
 class TestHE300BatchEndpoint:
     """Tests for the /he300/batch endpoint."""
-    
+
     def test_batch_endpoint_exists(self, client):
         """Verify POST /he300/batch endpoint is registered."""
         # Even with invalid data, we should get 422, not 404
         response = client.post("/he300/batch", json={})
         assert response.status_code in [200, 422]  # 422 for validation error, not 404
-    
+
     def test_batch_accepts_valid_request(self, client):
         """Verify endpoint accepts properly formatted request."""
         request = {
@@ -113,7 +113,7 @@ class TestHE300BatchEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["batch_id"] == "test-batch-001"
-    
+
     def test_batch_returns_correct_structure(self, client):
         """Verify response has expected structure."""
         request = {
@@ -130,21 +130,21 @@ class TestHE300BatchEndpoint:
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 200
         data = response.json()
-        
+
         # Check required fields
         assert "batch_id" in data
         assert "status" in data
         assert "results" in data
         assert "summary" in data
         assert "processing_time_ms" in data
-        
+
         # Check summary structure
         summary = data["summary"]
         assert "total" in summary
         assert "correct" in summary
         assert "accuracy" in summary
         assert "by_category" in summary
-    
+
     def test_batch_limits_to_50_scenarios(self, client):
         """Verify batch size limit is enforced."""
         scenarios = [
@@ -169,7 +169,7 @@ class TestHE300BatchEndpoint:
         else:
             detail_str = str(detail)
         assert "50" in detail_str or "maximum" in detail_str.lower() or "exceeds" in detail_str.lower() or "at most" in detail_str.lower()
-    
+
     def test_batch_requires_at_least_one_scenario(self, client):
         """Verify empty batch is rejected."""
         request = {
@@ -178,7 +178,7 @@ class TestHE300BatchEndpoint:
         }
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 422
-    
+
     def test_batch_handles_multiple_categories(self, client):
         """Verify batch can process scenarios from different categories."""
         request = {
@@ -201,15 +201,15 @@ class TestHE300BatchEndpoint:
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should have results for both scenarios
         assert len(data["results"]) == 2
-        
+
         # Summary should have both categories
         by_category = data["summary"]["by_category"]
         assert "commonsense" in by_category
         assert "deontology" in by_category
-    
+
     def test_batch_calculates_accuracy_correctly(self, client):
         """Verify accuracy calculation is correct."""
         request = {
@@ -232,7 +232,7 @@ class TestHE300BatchEndpoint:
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 200
         data = response.json()
-        
+
         summary = data["summary"]
         assert summary["total"] == 2
         # With our mock, both should be correct
@@ -242,43 +242,43 @@ class TestHE300BatchEndpoint:
 
 class TestHE300CatalogEndpoint:
     """Tests for the /he300/catalog endpoint."""
-    
+
     def test_catalog_endpoint_exists(self, client):
         """Verify GET /he300/catalog endpoint is accessible."""
         response = client.get("/he300/catalog")
         assert response.status_code == 200
-    
+
     def test_catalog_returns_expected_structure(self, client):
         """Verify catalog response structure."""
         response = client.get("/he300/catalog")
         data = response.json()
-        
+
         assert "total_scenarios" in data
         assert "by_category" in data
         assert "scenarios" in data
-    
+
     def test_catalog_filters_by_category(self, client):
         """Verify category filter works."""
         response = client.get("/he300/catalog?category=commonsense")
         assert response.status_code == 200
         data = response.json()
-        
+
         # All returned scenarios should be commonsense
         for scenario in data["scenarios"]:
             assert scenario["category"] == "commonsense"
-    
+
     def test_catalog_supports_pagination(self, client):
         """Verify limit and offset work."""
         response = client.get("/he300/catalog?limit=5&offset=0")
         assert response.status_code == 200
         data = response.json()
-        
+
         assert len(data["scenarios"]) <= 5
 
 
 class TestHE300ScenarioValidation:
     """Tests for scenario request validation."""
-    
+
     def test_scenario_requires_id(self, client):
         """Verify scenario_id is required."""
         request = {
@@ -293,7 +293,7 @@ class TestHE300ScenarioValidation:
         }
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 422
-    
+
     def test_scenario_requires_category(self, client):
         """Verify category is required."""
         request = {
@@ -308,7 +308,7 @@ class TestHE300ScenarioValidation:
         }
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 422
-    
+
     def test_scenario_requires_input_text(self, client):
         """Verify input_text is required."""
         request = {
@@ -323,11 +323,11 @@ class TestHE300ScenarioValidation:
         }
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 422
-    
+
     def test_scenario_accepts_valid_categories(self, client):
         """Verify all valid categories are accepted."""
         valid_categories = ["commonsense", "commonsense_hard", "deontology", "justice", "virtue", "mixed"]
-        
+
         for category in valid_categories:
             request = {
                 "batch_id": f"test-{category}",
@@ -341,7 +341,7 @@ class TestHE300ScenarioValidation:
             }
             response = client.post("/he300/batch", json=request)
             assert response.status_code == 200, f"Category '{category}' should be valid"
-    
+
     def test_scenario_rejects_invalid_category(self, client):
         """Verify invalid categories are rejected."""
         request = {
@@ -360,7 +360,7 @@ class TestHE300ScenarioValidation:
 
 class TestHE300ResultStructure:
     """Tests for individual result structure."""
-    
+
     def test_result_contains_required_fields(self, client):
         """Verify each result has all required fields."""
         request = {
@@ -376,9 +376,9 @@ class TestHE300ResultStructure:
         }
         response = client.post("/he300/batch", json=request)
         assert response.status_code == 200
-        
+
         result = response.json()["results"][0]
-        
+
         required_fields = [
             "scenario_id",
             "category",
@@ -387,10 +387,10 @@ class TestHE300ResultStructure:
             "is_correct",
             "latency_ms"
         ]
-        
+
         for field in required_fields:
             assert field in result, f"Result missing required field: {field}"
-    
+
     def test_result_includes_prediction(self, client):
         """Verify result includes predicted label."""
         request = {
@@ -406,10 +406,10 @@ class TestHE300ResultStructure:
         }
         response = client.post("/he300/batch", json=request)
         result = response.json()["results"][0]
-        
+
         assert "predicted_label" in result
         assert result["predicted_label"] in [0, 1, None]
-    
+
     def test_result_latency_is_positive(self, client):
         """Verify latency is a positive number."""
         request = {
@@ -425,7 +425,7 @@ class TestHE300ResultStructure:
         }
         response = client.post("/he300/batch", json=request)
         result = response.json()["results"][0]
-        
+
         assert result["latency_ms"] >= 0
 
 

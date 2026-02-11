@@ -279,7 +279,7 @@ export JWT_SECRET=your-secret
 # CIRISNode tests
 cd CIRISNode && pytest tests/ -v
 
-# EthicsEngine tests  
+# EthicsEngine tests
 cd ethicsengine_enterprise && pytest tests/ -v
 
 # Integration tests
@@ -307,7 +307,7 @@ cd staging
 ```yaml
 - name: Run HE-300 Benchmark
   run: ./scripts/run_he300_benchmark.sh --mock --quick
-  
+
 - name: Upload Results
   uses: actions/upload-artifact@v4
   with:

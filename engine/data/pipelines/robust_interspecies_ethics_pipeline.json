@@ -91,7 +91,7 @@
         },
         "ag2_config": {
           "max_depth": 0,
-          "method": "beam_search" 
+          "method": "beam_search"
         }
       },
       {

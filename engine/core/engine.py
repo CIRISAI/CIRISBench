@@ -375,7 +375,7 @@ class EthicsEngine:
         """
         Generates a response from the LLM for evaluation purposes, using specific identity and guidance.
         This is a simplified version of the LLM stage handler, focused on a single turn.
-        
+
         Args:
             prompt: The user prompt to evaluate
             identity: The identity profile to use

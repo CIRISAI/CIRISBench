@@ -23,7 +23,7 @@ export default async function ComparePage({
   });
 
   // Get comparison data for selected models
-  const comparisonData = modelIds.length > 0 
+  const comparisonData = modelIds.length > 0
     ? await Promise.all(
         modelIds.map(async (model) => {
           const latestRun = await prisma.benchmarkRun.findFirst({

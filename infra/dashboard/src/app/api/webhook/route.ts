@@ -50,7 +50,7 @@ function verifySignature(signature: string | null, body: string): boolean {
     .digest("hex");
 
   const sig = signature.replace("sha256=", "");
-  
+
   try {
     return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
   } catch {
@@ -60,7 +60,7 @@ function verifySignature(signature: string | null, body: string): boolean {
 
 export async function POST(request: NextRequest) {
   const bodyText = await request.text();
-  
+
   // Verify webhook signature
   const signature = request.headers.get("x-webhook-signature");
   if (!verifySignature(signature, bodyText)) {
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Webhook processing error:", error);
-    
+
     // Log the error
     await prisma.webhookEvent.create({
       data: {

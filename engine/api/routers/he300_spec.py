@@ -61,7 +61,7 @@ CURRENT_SPEC_VERSION = "1.0.0"
 def get_he300_rules() -> List[HE300SpecRule]:
     """
     Return the complete set of HE-300 validation rules.
-    
+
     These rules are derived from the Functional Specification Document
     and define what constitutes a valid HE-300 benchmark run.
     """
@@ -121,7 +121,7 @@ def get_he300_rules() -> List[HE300SpecRule]:
             expected_value=True,
             validation_logic="random_seed is not None",
         ),
-        
+
         # Scoring Requirements (FR-6, FR-7, FR-8)
         HE300SpecRule(
             rule_id="FR-6",
@@ -150,7 +150,7 @@ def get_he300_rules() -> List[HE300SpecRule]:
             expected_value=True,
             validation_logic="same_inputs + same_seed + same_pipelines => same_results",
         ),
-        
+
         # Trace ID Requirements (FR-9, FR-10, FR-11)
         HE300SpecRule(
             rule_id="FR-9",
@@ -206,7 +206,7 @@ def get_he300_rules() -> List[HE300SpecRule]:
             expected_value=True,
             validation_logic="trace_id in output artifacts",
         ),
-        
+
         # Output Requirements (FR-11, FR-12 from FSD)
         HE300SpecRule(
             rule_id="FR-12a",
@@ -253,7 +253,7 @@ def get_he300_rules() -> List[HE300SpecRule]:
             expected_value=True,
             validation_logic="output is valid JSON",
         ),
-        
+
         # Non-Functional Requirements
         HE300SpecRule(
             rule_id="NFR-2",
@@ -272,7 +272,7 @@ def build_he300_spec() -> HE300Spec:
     Build the complete HE-300 specification with all rules and metadata.
     """
     rules = get_he300_rules()
-    
+
     # Calculate spec hash from rules content
     rules_json = json.dumps(
         [r.model_dump() for r in rules],
@@ -280,7 +280,7 @@ def build_he300_spec() -> HE300Spec:
         default=str
     )
     spec_hash = hashlib.sha256(rules_json.encode()).hexdigest()
-    
+
     metadata = HE300SpecMetadata(
         spec_version=CURRENT_SPEC_VERSION,
         spec_hash=f"sha256:{spec_hash}",
@@ -290,7 +290,7 @@ def build_he300_spec() -> HE300Spec:
         curated_scenario_count=15000,
         sample_size=300,
     )
-    
+
     return HE300Spec(
         metadata=metadata,
         rules=rules,
@@ -311,38 +311,38 @@ _spec_cache_time: Optional[datetime] = None
 def get_cached_spec(force_refresh: bool = False) -> HE300Spec:
     """
     Get the HE-300 spec, using cache if available.
-    
+
     Per FR-1: Retrieves spec from ethicsengineenterprise
     Per FR-2: Records metadata (version, hash, timestamp)
     Per FR-3: Raises if spec cannot be retrieved
     """
     global _spec_cache, _spec_cache_time
-    
+
     # Check if we have a valid cache
     cache_valid = (
         _spec_cache is not None
         and _spec_cache_time is not None
         and not force_refresh
     )
-    
+
     if cache_valid:
         return _spec_cache
-    
+
     try:
         # Build/retrieve the spec
         spec = build_he300_spec()
-        
+
         # Cache it
         _spec_cache = spec
         _spec_cache_time = datetime.now(timezone.utc)
-        
+
         # Also persist to disk for recovery
         cache_file = SPEC_CACHE_DIR / f"spec_{spec.metadata.spec_version}.json"
         cache_file.write_text(spec.model_dump_json(indent=2))
-        
+
         logger.info(f"Loaded HE-300 spec v{spec.metadata.spec_version}")
         return spec
-        
+
     except Exception as e:
         # Per FR-3: Fail if spec cannot be retrieved
         logger.error(f"Failed to retrieve HE-300 spec: {e}")
@@ -358,13 +358,13 @@ def get_cached_spec(force_refresh: bool = False) -> HE300Spec:
 async def get_spec(force_refresh: bool = False):
     """
     Retrieve the current HE-300 specification.
-    
+
     Per FSD FR-1: Returns the complete HE-300 evaluation spec.
     Per FSD FR-2: Includes metadata (version, hash, timestamp).
-    
+
     Args:
         force_refresh: If True, bypass cache and re-retrieve spec
-        
+
     Returns:
         Complete HE-300 specification with all rules
     """
@@ -375,7 +375,7 @@ async def get_spec(force_refresh: bool = False):
 async def get_spec_metadata():
     """
     Get only the metadata for the current HE-300 spec.
-    
+
     Lightweight endpoint for checking spec version without
     downloading the full rule set.
     """
@@ -387,20 +387,20 @@ async def get_spec_metadata():
 async def get_spec_rules(category: Optional[str] = None):
     """
     Get the validation rules from the HE-300 spec.
-    
+
     Args:
         category: Optional filter by rule category
                   (sampling, scoring, tracing, reporting, performance)
-    
+
     Returns:
         List of validation rules
     """
     spec = get_cached_spec()
     rules = spec.rules
-    
+
     if category:
         rules = [r for r in rules if r.category == category]
-    
+
     return rules
 
 
@@ -410,11 +410,11 @@ async def get_rule(rule_id: str):
     Get a specific rule by ID.
     """
     spec = get_cached_spec()
-    
+
     for rule in spec.rules:
         if rule.rule_id == rule_id:
             return rule
-    
+
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Rule '{rule_id}' not found in spec"
@@ -425,7 +425,7 @@ async def get_rule(rule_id: str):
 async def get_spec_hash():
     """
     Get the current spec hash for integrity verification.
-    
+
     Clients can use this to check if their cached spec is current.
     """
     spec = get_cached_spec()
@@ -442,7 +442,7 @@ async def list_spec_versions():
     List all available spec versions in the cache.
     """
     versions = []
-    
+
     for cache_file in SPEC_CACHE_DIR.glob("spec_*.json"):
         try:
             spec_data = json.loads(cache_file.read_text())
@@ -453,9 +453,9 @@ async def list_spec_versions():
             })
         except Exception as e:
             logger.warning(f"Failed to read spec cache {cache_file}: {e}")
-    
+
     versions.sort(key=lambda v: v.get("version", ""), reverse=True)
-    
+
     return {
         "current_version": CURRENT_SPEC_VERSION,
         "available_versions": versions,
@@ -466,7 +466,7 @@ async def list_spec_versions():
 async def get_sampling_requirements():
     """
     Get the sampling requirements for HE-300 benchmarks.
-    
+
     Returns the requirements that sampling must satisfy:
     - Total scenarios: 300
     - Distribution across categories

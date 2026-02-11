@@ -39,42 +39,42 @@ jobs:
   sync-cirisnode:
     name: Sync CIRISNode
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Configure Git
         run: |
           git config user.name "Submodule Sync Bot"
           git config user.email "sync@he300.local"
-          
+
       - name: Update CIRISNode submodule
         run: |
           cd submodules/cirisnode
-          
+
           # Fetch all remotes
           git fetch origin
           git fetch upstream 2>/dev/null || git remote add upstream https://github.com/CIRISAI/CIRISNode.git && git fetch upstream
-          
+
           # Checkout target branch
           git checkout ${{ env.CIRISNODE_BRANCH }} 2>/dev/null || git checkout -b ${{ env.CIRISNODE_BRANCH }} origin/${{ env.CIRISNODE_BRANCH }}
-          
+
           # Pull latest
           git pull origin ${{ env.CIRISNODE_BRANCH }} --rebase || true
-          
+
           # Check if we're behind upstream
           BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
           echo "CIRISNode is $BEHIND commits behind upstream/main"
-          
+
       - name: Commit submodule update
         run: |
           git add submodules/cirisnode
           git diff --staged --quiet || git commit -m "chore: Update CIRISNode submodule to ${{ env.CIRISNODE_BRANCH }}"
-          
+
       - name: Push changes
         run: |
           git push origin HEAD || true
@@ -85,42 +85,42 @@ jobs:
   sync-eee:
     name: Sync EthicsEngine
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true
           token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Configure Git
         run: |
           git config user.name "Submodule Sync Bot"
           git config user.email "sync@he300.local"
-          
+
       - name: Update EEE submodule
         run: |
           cd submodules/ethicsengine
-          
+
           # Fetch all remotes
           git fetch origin
           git fetch upstream 2>/dev/null || git remote add upstream https://github.com/emooreatx/ethicsengine_enterprise.git && git fetch upstream
-          
+
           # Checkout target branch
           git checkout ${{ env.EEE_BRANCH }} 2>/dev/null || git checkout -b ${{ env.EEE_BRANCH }} origin/${{ env.EEE_BRANCH }}
-          
+
           # Pull latest
           git pull origin ${{ env.EEE_BRANCH }} --rebase || true
-          
+
           # Check if we're behind upstream
           BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
           echo "EEE is $BEHIND commits behind upstream/main"
-          
+
       - name: Commit submodule update
         run: |
           git add submodules/ethicsengine
           git diff --staged --quiet || git commit -m "chore: Update EthicsEngine submodule to ${{ env.EEE_BRANCH }}"
-          
+
       - name: Push changes
         run: |
           git push origin HEAD || true
@@ -132,28 +132,28 @@ jobs:
     name: Verify Sync
     runs-on: ubuntu-latest
     needs: [sync-cirisnode, sync-eee]
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          
+
       - name: Verify submodules
         run: |
           echo "=== Submodule Status ==="
           git submodule status
-          
+
           echo ""
           echo "=== CIRISNode ==="
           cd submodules/cirisnode
           git log --oneline -5
-          
+
           echo ""
           echo "=== EthicsEngine ==="
           cd ../ethicsengine
           git log --oneline -5
-          
+
       - name: Check for conflicts
         run: |
           # Verify submodules are on expected branches
@@ -162,7 +162,7 @@ jobs:
           if [ "$CURRENT" != "${{ env.CIRISNODE_BRANCH }}" ]; then
             echo "::warning::CIRISNode not on expected branch. Current: $CURRENT, Expected: ${{ env.CIRISNODE_BRANCH }}"
           fi
-          
+
           cd ../ethicsengine
           CURRENT=$(git branch --show-current)
           if [ "$CURRENT" != "${{ env.EEE_BRANCH }}" ]; then

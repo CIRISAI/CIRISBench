@@ -46,12 +46,12 @@ check_vault() {
         log_error "Vault CLI not found. Install from: https://www.vaultproject.io/downloads"
         exit 1
     fi
-    
+
     if ! vault status &> /dev/null; then
         log_warn "Cannot connect to Vault at $VAULT_ADDR"
         return 1
     fi
-    
+
     return 0
 }
 
@@ -67,23 +67,23 @@ generate_base64_secret() {
 
 init_vault() {
     log_info "Initializing Vault..."
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would initialize Vault with 5 key shares, 3 threshold"
         return
     fi
-    
+
     local init_output
     init_output=$(vault operator init -key-shares=5 -key-threshold=3 -format=json)
-    
+
     # Save init output securely
     local init_file="${SCRIPT_DIR}/../.vault-init.json"
     echo "$init_output" > "$init_file"
     chmod 600 "$init_file"
-    
+
     log_success "Vault initialized. Keys saved to $init_file"
     log_warn "IMPORTANT: Back up this file securely and delete it from disk!"
-    
+
     # Extract root token
     VAULT_TOKEN=$(echo "$init_output" | jq -r '.root_token')
     export VAULT_TOKEN
@@ -91,44 +91,44 @@ init_vault() {
 
 unseal_vault() {
     log_info "Unsealing Vault..."
-    
+
     local init_file="${SCRIPT_DIR}/../.vault-init.json"
     if [[ ! -f "$init_file" ]]; then
         log_error "Init file not found: $init_file"
         log_info "Provide unseal keys manually or run with --init first"
         exit 1
     fi
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would unseal Vault using saved keys"
         return
     fi
-    
+
     # Extract unseal keys
     local keys
     keys=$(jq -r '.unseal_keys_b64[]' "$init_file" | head -3)
-    
+
     for key in $keys; do
         vault operator unseal "$key" > /dev/null
     done
-    
+
     log_success "Vault unsealed"
 }
 
 configure_policies() {
     log_info "Configuring Vault policies..."
-    
+
     local policy_dir="${SCRIPT_DIR}/../config/vault/policies"
-    
+
     for policy_file in "$policy_dir"/*.hcl; do
         local policy_name
         policy_name=$(basename "$policy_file" .hcl)
-        
+
         if $DRY_RUN; then
             log_info "[DRY-RUN] Would create policy: $policy_name"
             continue
         fi
-        
+
         vault policy write "$policy_name" "$policy_file"
         log_success "Created policy: $policy_name"
     done
@@ -136,29 +136,29 @@ configure_policies() {
 
 configure_auth() {
     log_info "Configuring auth methods..."
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would configure AppRole and JWT auth methods"
         return
     fi
-    
+
     # Enable AppRole if not already enabled
     if ! vault auth list | grep -q "approle/"; then
         vault auth enable approle
         log_success "Enabled AppRole auth"
     fi
-    
+
     # Enable JWT for GitHub OIDC if not already enabled
     if ! vault auth list | grep -q "jwt-github/"; then
         vault auth enable -path=jwt-github jwt
         log_success "Enabled JWT auth for GitHub"
     fi
-    
+
     # Configure GitHub OIDC
     vault write auth/jwt-github/config \
         oidc_discovery_url="https://token.actions.githubusercontent.com" \
         bound_issuer="https://token.actions.githubusercontent.com"
-    
+
     # Configure roles
     vault write auth/jwt-github/role/he300-deploy \
         role_type="jwt" \
@@ -168,7 +168,7 @@ configure_auth() {
         policies="he300-deploy" \
         ttl="1h" \
         max_ttl="4h"
-    
+
     vault write auth/jwt-github/role/terraform-deploy \
         role_type="jwt" \
         user_claim="actor" \
@@ -177,9 +177,9 @@ configure_auth() {
         policies="terraform-deploy" \
         ttl="1h" \
         max_ttl="2h"
-    
+
     log_success "Configured GitHub OIDC roles"
-    
+
     # Configure AppRoles
     vault write auth/approle/role/he300-installer \
         policies="he300-deploy" \
@@ -187,7 +187,7 @@ configure_auth() {
         token_max_ttl="1h" \
         secret_id_ttl="24h" \
         secret_id_num_uses=10
-    
+
     vault write auth/approle/role/he300-gpu-host \
         policies="he300-deploy" \
         token_ttl="1h" \
@@ -195,7 +195,7 @@ configure_auth() {
         token_num_uses=0 \
         secret_id_ttl=0 \
         secret_id_num_uses=0
-    
+
     vault write auth/approle/role/he300-dashboard \
         policies="dashboard" \
         token_ttl="1h" \
@@ -203,18 +203,18 @@ configure_auth() {
         token_num_uses=0 \
         secret_id_ttl=0 \
         secret_id_num_uses=0
-    
+
     log_success "Configured AppRole roles"
 }
 
 enable_secrets_engine() {
     log_info "Enabling secrets engines..."
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would enable KV v2 secrets engine at secret/"
         return
     fi
-    
+
     # Enable KV v2 if not already enabled
     if ! vault secrets list | grep -q "secret/"; then
         vault secrets enable -path=secret -version=2 kv
@@ -224,24 +224,24 @@ enable_secrets_engine() {
 
 generate_and_store_secrets() {
     log_info "Generating and storing secrets..."
-    
+
     # API Keys
     local cirisnode_key=$(generate_secret 32)
     local ethicsengine_key=$(generate_secret 32)
     local dashboard_key=$(generate_secret 32)
-    
+
     # Database passwords
     local postgres_password=$(generate_secret 24)
     local redis_password=$(generate_secret 24)
     local dashboard_db_password=$(generate_secret 24)
-    
+
     # JWT secret
     local jwt_secret=$(generate_base64_secret 48)
-    
+
     # Webhook secrets
     local github_webhook_secret=$(generate_secret 32)
     local dashboard_webhook_secret=$(generate_secret 32)
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would store secrets at secret/he300/*"
         log_info "  - API keys: cirisnode, ethicsengine, dashboard"
@@ -250,22 +250,22 @@ generate_and_store_secrets() {
         log_info "  - Webhook secrets"
         return
     fi
-    
+
     # Store API keys
     vault kv put secret/he300/api-keys/cirisnode \
         api_key="$cirisnode_key" \
         description="CIRISNode API authentication key"
-    
+
     vault kv put secret/he300/api-keys/ethicsengine \
         api_key="$ethicsengine_key" \
         description="EthicsEngine Enterprise API key"
-    
+
     vault kv put secret/he300/api-keys/dashboard \
         api_key="$dashboard_key" \
         description="Dashboard API key"
-    
+
     log_success "Stored API keys"
-    
+
     # Store database credentials
     vault kv put secret/he300/database/postgres \
         username="he300" \
@@ -273,38 +273,38 @@ generate_and_store_secrets() {
         host="postgres" \
         port="5432" \
         database="he300"
-    
+
     vault kv put secret/he300/database/redis \
         password="$redis_password" \
         host="redis" \
         port="6379"
-    
+
     vault kv put secret/he300/database/dashboard \
         username="dashboard" \
         password="$dashboard_db_password" \
         host="postgres" \
         port="5432" \
         database="he300_dashboard"
-    
+
     log_success "Stored database credentials"
-    
+
     # Store JWT secret
     vault kv put secret/he300/jwt/signing-key \
         secret="$jwt_secret" \
         algorithm="HS256" \
         issuer="he300-benchmark"
-    
+
     log_success "Stored JWT signing key"
-    
+
     # Store webhook secrets
     vault kv put secret/he300/webhook/github \
         secret="$github_webhook_secret"
-    
+
     vault kv put secret/he300/webhook/dashboard \
         secret="$dashboard_webhook_secret"
-    
+
     log_success "Stored webhook secrets"
-    
+
     # Output summary
     echo ""
     log_info "=== Secret Generation Complete ==="
@@ -320,39 +320,39 @@ generate_and_store_secrets() {
 
 setup_wireguard_keys() {
     log_info "Generating WireGuard keys..."
-    
+
     if ! command -v wg &> /dev/null; then
         log_warn "WireGuard tools not found. Skipping key generation."
         log_info "Install wireguard-tools and run: ./setup-vault.sh --wireguard"
         return
     fi
-    
+
     # Generate GPU host keys
     local gpu_private=$(wg genkey)
     local gpu_public=$(echo "$gpu_private" | wg pubkey)
-    
+
     # Generate test runner keys
     local runner_private=$(wg genkey)
     local runner_public=$(echo "$runner_private" | wg pubkey)
-    
+
     if $DRY_RUN; then
         log_info "[DRY-RUN] Would store WireGuard keys at secret/he300/wireguard/*"
         return
     fi
-    
+
     vault kv put secret/he300/wireguard/gpu-host \
         private_key="$gpu_private" \
         public_key="$gpu_public" \
         address="10.0.0.2/24" \
         listen_port="51820"
-    
+
     vault kv put secret/he300/wireguard/test-runner \
         private_key="$runner_private" \
         public_key="$runner_public" \
         address="10.0.0.1/24"
-    
+
     log_success "Stored WireGuard keys"
-    
+
     echo ""
     log_info "WireGuard Public Keys:"
     log_info "  GPU Host:    $gpu_public"

@@ -58,14 +58,14 @@ if AUTOGEN_AVAILABLE and LLMConfig:
     if not loaded_config_list:
         logger.info("LLM config not loaded from environment variable, using default configuration.")
         default_list = settings.default_llm_config_list
-        
+
         # Use the LLMSetter to configure the default list
         if default_list:
             try:
                 # Configure each item in the default list
                 for item in default_list:
                     llm_setter.config_llm(item)
-                
+
                 # Get the updated configuration
                 loaded_config_list = llm_setter.get_config()
                 if loaded_config_list:

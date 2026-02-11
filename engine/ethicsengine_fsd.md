@@ -2,7 +2,7 @@
 
 ## Overview
 
- ([image]()) *Figure: High-level architecture of EthicsEngine 1.0. Key inputs (identity, ethical reasoning model, reasoning depth, and LLM) configure the central EthicsAgent, which runs pipelines on ethical scenarios or benchmarks to produce evaluative results.*  
+ ([image]()) *Figure: High-level architecture of EthicsEngine 1.0. Key inputs (identity, ethical reasoning model, reasoning depth, and LLM) configure the central EthicsAgent, which runs pipelines on ethical scenarios or benchmarks to produce evaluative results.*
 
 EthicsEngine 1.0 is a framework for **evaluating and comparing ethical reasoning and guardrail effectiveness** in language model pipelines. It allows developers to simulate complex scenarios and Q&A benchmarks with large language models (LLMs) to assess how different moral guidelines and safety guardrails impact the model’s responses. Built on the AG2 v0.8.5 platform, EthicsEngine leverages the AG2 **ReasoningAgent** as its core orchestration agent to manage multi-step interactions and decision-making. The system is designed with a modular pipeline architecture: each pipeline consists of discrete stages (e.g. planning, action, judgment) that can be composed and reconfigured easily. By adjusting **Identity** profiles (simulated user personas or cultural contexts), **Ethical Guidance** (moral reasoning frameworks or principle sets), and **Guardrails** (safety rules and content filters), developers can compare how an LLM’s behavior changes across different ethical configurations. The overall goal is to provide a production-ready, extensible foundation for **ethical AI evaluation**, emphasizing clean separation of concerns, ease of testing individual components, and support for future extensions (new models, new principles, additional guardrails, etc.). In the following sections, we detail the functional specifications of each component schema and how they integrate into the EthicsEngine pipeline, followed by notes on integration, implementation, and guiding ethical principles.
 
@@ -236,7 +236,7 @@ Another example:
 }
 ```
 
-*Explanation:* The **Utilitarian** guidance emphasizes outcomes (beneficence and harm reduction contributing to overall utility). Its prompt template suggests the assistant think in terms of net benefit. The **Deontological** guidance emphasizes duties and rights (like keeping promises, telling the truth, respecting autonomy) above consequences, with an example template to enforce rule-based thinking. 
+*Explanation:* The **Utilitarian** guidance emphasizes outcomes (beneficence and harm reduction contributing to overall utility). Its prompt template suggests the assistant think in terms of net benefit. The **Deontological** guidance emphasizes duties and rights (like keeping promises, telling the truth, respecting autonomy) above consequences, with an example template to enforce rule-based thinking.
 
 At runtime, these guidance settings influence the EthicsAgent’s behavior. The ReasoningAgent might incorporate the `prompt_template` at the system level so that every decision it considers is filtered through that moral lens. For example, if an identity is combined with a guidance, the system prompt could be a combination: *"You are a helpful assistant advising a teenager. You follow utilitarian ethics, meaning you consider the consequences..."*. This way, **EthicsEngine ensures the LLM’s reasoning chain is imbued with the specified ethical perspective** from the outset.
 

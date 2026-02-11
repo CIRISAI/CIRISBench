@@ -2,7 +2,7 @@
 #===============================================================================
 #
 #  HE-300 Benchmark Suite Installer
-#  
+#
 #  Installs the complete HE-300 ethical benchmark stack via Docker Compose:
 #  - CIRISNode with EthicsEngine Enterprise integration
 #  - GPU-accelerated inference (NVIDIA or Apple Silicon)
@@ -62,10 +62,10 @@ log_step() {
 
 detect_platform() {
     log_step "Detecting Platform"
-    
+
     PLATFORM="unknown"
     ARCH=$(uname -m)
-    
+
     case "$(uname -s)" in
         Linux*)
             PLATFORM="linux"
@@ -81,11 +81,11 @@ detect_platform() {
             DISTRO_VERSION=$(sw_vers -productVersion)
             ;;
     esac
-    
+
     log_info "Platform: $PLATFORM"
     log_info "Architecture: $ARCH"
     log_info "Distribution: ${DISTRO:-unknown} ${DISTRO_VERSION:-}"
-    
+
     # Detect GPU
     GPU_TYPE="none"
     if [ "$PLATFORM" = "macos" ]; then
@@ -102,7 +102,7 @@ detect_platform() {
             fi
         fi
     fi
-    
+
     if [ "$GPU_TYPE" = "none" ] && [ "$NO_GPU" = false ]; then
         log_warn "No GPU detected. Running in CPU-only mode."
         NO_GPU=true
@@ -111,42 +111,42 @@ detect_platform() {
 
 check_dependencies() {
     log_step "Checking Dependencies"
-    
+
     local missing=()
-    
+
     # Check Docker
     if ! command -v docker &> /dev/null; then
         missing+=("docker")
     else
         log_success "Docker: $(docker --version | cut -d' ' -f3 | tr -d ',')"
     fi
-    
+
     # Check Docker Compose
     if ! docker compose version &> /dev/null; then
         missing+=("docker-compose")
     else
         log_success "Docker Compose: $(docker compose version --short)"
     fi
-    
+
     # Check Git
     if ! command -v git &> /dev/null; then
         missing+=("git")
     else
         log_success "Git: $(git --version | cut -d' ' -f3)"
     fi
-    
+
     # Check curl
     if ! command -v curl &> /dev/null; then
         missing+=("curl")
     else
         log_success "curl: available"
     fi
-    
+
     if [ ${#missing[@]} -gt 0 ]; then
         log_error "Missing dependencies: ${missing[*]}"
         echo ""
         echo "Please install the missing dependencies:"
-        
+
         if [ "$PLATFORM" = "macos" ]; then
             echo "  brew install ${missing[*]}"
             echo ""
@@ -158,7 +158,7 @@ check_dependencies() {
         fi
         exit 1
     fi
-    
+
     # Check Docker is running
     if ! docker info &> /dev/null; then
         log_error "Docker is not running. Please start Docker and try again."
@@ -170,7 +170,7 @@ check_dependencies() {
 check_nvidia_toolkit() {
     if [ "$GPU_TYPE" = "nvidia" ]; then
         log_step "Checking NVIDIA Container Toolkit"
-        
+
         if docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi &> /dev/null; then
             log_success "NVIDIA Container Toolkit is working"
         else
@@ -191,19 +191,19 @@ check_nvidia_toolkit() {
 
 create_directories() {
     log_step "Creating Directory Structure"
-    
+
     mkdir -p "$INSTALL_DIR"/{config,logs}
     mkdir -p "$DATA_DIR"/{models,results,artifacts}
-    
+
     log_success "Created: $INSTALL_DIR"
     log_success "Created: $DATA_DIR"
 }
 
 clone_repositories() {
     log_step "Cloning Repositories"
-    
+
     cd "$INSTALL_DIR"
-    
+
     # Clone or update CIRISNode
     if [ -d "CIRISNode" ]; then
         log_info "Updating CIRISNode..."
@@ -213,7 +213,7 @@ clone_repositories() {
         git clone --quiet https://github.com/rng-ops/CIRISNode.git --branch feature/eee-integration
     fi
     log_success "CIRISNode ready"
-    
+
     # Clone or update EthicsEngine Enterprise
     if [ -d "ethicsengine_enterprise" ]; then
         log_info "Updating EthicsEngine Enterprise..."
@@ -223,7 +223,7 @@ clone_repositories() {
         git clone --quiet https://github.com/rng-ops/ethicsengine_enterprise.git --branch feature/he300-api
     fi
     log_success "EthicsEngine Enterprise ready"
-    
+
     # Clone staging repo for docker-compose files
     if [ -d "he300-integration" ]; then
         log_info "Updating he300-integration..."
@@ -237,20 +237,20 @@ clone_repositories() {
 
 generate_env_file() {
     log_step "Generating Configuration"
-    
+
     ENV_FILE="$INSTALL_DIR/.env"
-    
+
     if [ -f "$ENV_FILE" ]; then
         log_warn "Existing .env file found. Backing up..."
         cp "$ENV_FILE" "${ENV_FILE}.backup.$(date +%s)"
     fi
-    
+
     # Generate secrets
     DB_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/')
     REDIS_PASSWORD=$(openssl rand -base64 24 | tr -d '=+/')
     JWT_SECRET=$(openssl rand -base64 32)
     WEBHOOK_SECRET=$(openssl rand -hex 32)
-    
+
     cat > "$ENV_FILE" << EOF
 # HE-300 Configuration
 # Generated: $(date -Iseconds)
@@ -299,9 +299,9 @@ EOF
 
 create_docker_compose() {
     log_step "Creating Docker Compose Configuration"
-    
+
     COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
-    
+
     # Determine GPU config
     GPU_CONFIG=""
     if [ "$NO_GPU" = false ]; then
@@ -316,7 +316,7 @@ create_docker_compose() {
               capabilities: [gpu]'
         fi
     fi
-    
+
     cat > "$COMPOSE_FILE" << EOF
 version: '3.8'
 
@@ -432,7 +432,7 @@ EOF
       retries: 3
 EOF
     fi
-    
+
     # Add volumes and networks
     cat >> "$COMPOSE_FILE" << 'EOF'
 
@@ -450,7 +450,7 @@ EOF
 
 create_helper_scripts() {
     log_step "Creating Helper Scripts"
-    
+
     # Start script
     cat > "$INSTALL_DIR/start.sh" << 'EOF'
 #!/bin/bash
@@ -466,7 +466,7 @@ echo ""
 echo "Run './status.sh' to check service status"
 EOF
     chmod +x "$INSTALL_DIR/start.sh"
-    
+
     # Stop script
     cat > "$INSTALL_DIR/stop.sh" << 'EOF'
 #!/bin/bash
@@ -475,7 +475,7 @@ docker compose down
 echo "HE-300 services stopped"
 EOF
     chmod +x "$INSTALL_DIR/stop.sh"
-    
+
     # Status script
     cat > "$INSTALL_DIR/status.sh" << 'EOF'
 #!/bin/bash
@@ -489,7 +489,7 @@ curl -sf http://localhost:${EEE_PORT:-8080}/health && echo "EthicsEngine: ✅" |
 curl -sf http://localhost:${DASHBOARD_PORT:-3000}/api/health && echo "Dashboard: ✅" || echo "Dashboard: ❌"
 EOF
     chmod +x "$INSTALL_DIR/status.sh"
-    
+
     # Logs script
     cat > "$INSTALL_DIR/logs.sh" << 'EOF'
 #!/bin/bash
@@ -498,7 +498,7 @@ SERVICE="${1:-cirisnode}"
 docker compose logs -f "$SERVICE"
 EOF
     chmod +x "$INSTALL_DIR/logs.sh"
-    
+
     # Benchmark script
     cat > "$INSTALL_DIR/benchmark.sh" << 'EOF'
 #!/bin/bash
@@ -523,17 +523,17 @@ curl -X POST "http://localhost:${CIRISNODE_PORT:-8000}/api/benchmarks/run" \
   }"
 EOF
     chmod +x "$INSTALL_DIR/benchmark.sh"
-    
+
     log_success "Helper scripts created"
 }
 
 build_images() {
     log_step "Building Docker Images"
-    
+
     cd "$INSTALL_DIR"
-    
+
     log_info "This may take several minutes..."
-    
+
     if docker compose build; then
         log_success "Docker images built successfully"
     else
@@ -552,7 +552,7 @@ print_summary() {
   ╚═══════════════════════════════════════════════════════════════════╝
 EOF
     echo -e "${NC}"
-    
+
     echo "Installation Directory: $INSTALL_DIR"
     echo ""
     echo "Quick Start:"
@@ -575,11 +575,11 @@ EOF
     echo "─────────────────────────────────────────────────────────────────"
     echo "  CIRISNode API:     http://localhost:8000"
     echo "  EthicsEngine API:  http://localhost:8080"
-    
+
     if [ "$MINIMAL" = false ]; then
         echo "  Dashboard:         http://localhost:3000"
     fi
-    
+
     echo ""
     echo "Configuration: $INSTALL_DIR/.env"
     echo ""
@@ -644,22 +644,22 @@ parse_args() {
 
 main() {
     parse_args "$@"
-    
+
     echo -e "${CYAN}"
     cat << 'EOF'
-    
-  ██╗  ██╗███████╗      ██████╗  ██████╗  ██████╗ 
+
+  ██╗  ██╗███████╗      ██████╗  ██████╗  ██████╗
   ██║  ██║██╔════╝      ╚════██╗██╔═████╗██╔═████╗
   ███████║█████╗   █████╗ █████╔╝██║██╔██║██║██╔██║
   ██╔══██║██╔══╝   ╚════╝ ╚═══██╗████╔╝██║████╔╝██║
   ██║  ██║███████╗      ██████╔╝╚██████╔╝╚██████╔╝
-  ╚═╝  ╚═╝╚══════╝      ╚═════╝  ╚═════╝  ╚═════╝ 
-                                                   
+  ╚═╝  ╚═╝╚══════╝      ╚═════╝  ╚═════╝  ╚═════╝
+
   Ethical Benchmark Suite - Docker Compose Installer
 
 EOF
     echo -e "${NC}"
-    
+
     detect_platform
     check_dependencies
     check_nvidia_toolkit
@@ -668,14 +668,14 @@ EOF
     generate_env_file
     create_docker_compose
     create_helper_scripts
-    
+
     echo ""
     read -p "Build Docker images now? (Y/n): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         build_images
     fi
-    
+
     print_summary
 }
 

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Define a default config list using a standard model
     default_llm_config_list: List[Dict[str, Any]] = Field(
         llm_setter.get_config(),
-        
+
     )
     max_concurrent_llm_calls: int = Field(
         10,

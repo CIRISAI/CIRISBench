@@ -176,7 +176,7 @@ echo ""
 if [ ! -f "$COMPOSE_FILE" ]; then
     log_warn "Compose file not found: $COMPOSE_FILE"
     log_info "Looking for alternative compose files..."
-    
+
     if [ -f "$PROJECT_ROOT/docker-compose.yml" ]; then
         COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
     elif [ -f "$PROJECT_ROOT/CIRISNode/docker-compose.yml" ]; then
@@ -301,28 +301,28 @@ if [ -z "$JOB_ID" ]; then
     fi
 else
     log_success "Benchmark job started: $JOB_ID"
-    
+
     # -----------------------------------------------------------------------------
     # Step 5: Poll for Completion
     # -----------------------------------------------------------------------------
-    
+
     log_header "Step 5: Waiting for Completion"
-    
+
     START_TIME=$(date +%s)
-    
+
     while true; do
         ELAPSED=$(($(date +%s) - START_TIME))
-        
+
         if [ $ELAPSED -gt $TIMEOUT ]; then
             log_error "Timeout waiting for benchmark (${TIMEOUT}s)"
         fi
-        
+
         STATUS_RESPONSE=$(curl -sf "$CIRISNODE_URL/api/v1/benchmarks/status/$JOB_ID" \
             -H "Authorization: Bearer $TOKEN" 2>/dev/null || echo '{"status":"unknown"}')
-        
+
         STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status // "unknown"')
         PROGRESS=$(echo "$STATUS_RESPONSE" | jq -r '.progress // ""')
-        
+
         case $STATUS in
             completed)
                 echo ""
@@ -348,20 +348,20 @@ else
                 ;;
         esac
     done
-    
+
     # -----------------------------------------------------------------------------
     # Step 6: Fetch Results
     # -----------------------------------------------------------------------------
-    
+
     log_header "Step 6: Fetching Results"
-    
+
     RESULTS=$(curl -sf "$CIRISNODE_URL/api/v1/benchmarks/results/$JOB_ID" \
         -H "Authorization: Bearer $TOKEN" 2>/dev/null)
-    
+
     if [ -z "$RESULTS" ]; then
         log_error "Failed to fetch results"
     fi
-    
+
     # Save results
     echo "$RESULTS" | jq '.' > "$OUTPUT_FILE"
     log_success "Results saved to: $OUTPUT_FILE"
@@ -376,17 +376,17 @@ log_header "Benchmark Results"
 # Extract and display summary
 if [ -f "$OUTPUT_FILE" ]; then
     echo ""
-    
+
     # Try different JSON paths for summary
     SUMMARY=$(jq -r '.result.summary // .summary // {}' "$OUTPUT_FILE")
-    
+
     TOTAL=$(echo "$SUMMARY" | jq -r '.total // 0')
     CORRECT=$(echo "$SUMMARY" | jq -r '.correct // 0')
     ACCURACY=$(echo "$SUMMARY" | jq -r '.accuracy // 0')
-    
+
     # Format accuracy as percentage
     ACCURACY_PCT=$(awk "BEGIN {printf \"%.2f\", $ACCURACY * 100}")
-    
+
     echo "  ┌─────────────────────────────────────────────┐"
     echo "  │           HE-300 BENCHMARK RESULTS          │"
     echo "  ├─────────────────────────────────────────────┤"
@@ -395,14 +395,14 @@ if [ -f "$OUTPUT_FILE" ]; then
     printf "  │  Accuracy:            %19s%% │\n" "$ACCURACY_PCT"
     echo "  └─────────────────────────────────────────────┘"
     echo ""
-    
+
     # Category breakdown if available
     CATEGORIES=$(echo "$SUMMARY" | jq -r '.by_category // .categories // null')
     if [ "$CATEGORIES" != "null" ] && [ -n "$CATEGORIES" ]; then
         echo "  Category Breakdown:"
         echo "$CATEGORIES" | jq -r 'to_entries[] | "    \(.key): \(.value.correct // .value)/\(.value.total // 1) (\(if .value.accuracy then (.value.accuracy * 100 | floor) else "N/A" end)%)"'
     fi
-    
+
     echo ""
     log_success "Benchmark complete!"
 else

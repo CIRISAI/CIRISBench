@@ -68,7 +68,7 @@ EEE_BATCH_SIZE=50             # Scenarios per batch
 **Key Endpoints**:
 ```
 GET  /he300/health   → Check service status
-GET  /he300/catalog  → List available scenarios  
+GET  /he300/catalog  → List available scenarios
 POST /he300/batch    → Evaluate scenarios against LLM
 ```
 

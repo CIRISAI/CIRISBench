@@ -48,7 +48,7 @@ class OllamaModelInfo(BaseModel):
     size: Optional[int] = None
     digest: Optional[str] = None
     details: Optional[dict] = None
-    
+
 class OllamaModelList(BaseModel):
     """List of Ollama models."""
     models: List[OllamaModelInfo]
@@ -58,7 +58,7 @@ class OllamaModelList(BaseModel):
 class OllamaPullRequest(BaseModel):
     """Request to pull a model."""
     model_name: str = Field(..., description="Model name to pull (e.g., 'gemma3:4b-it-q8_0')")
-    
+
 
 class OllamaPullResponse(BaseModel):
     """Response for model pull operation."""
@@ -136,7 +136,7 @@ async def list_models():
             response = await client.get(f"{ollama_host}/api/tags")
             response.raise_for_status()
             data = response.json()
-            
+
             models = []
             for m in data.get("models", []):
                 models.append(OllamaModelInfo(
@@ -147,9 +147,9 @@ async def list_models():
                     digest=m.get("digest"),
                     details=m.get("details"),
                 ))
-            
+
             return OllamaModelList(models=models, ollama_host=ollama_host)
-            
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
@@ -167,13 +167,13 @@ async def list_models():
 async def pull_model(request: OllamaPullRequest, background_tasks: BackgroundTasks):
     """
     Pull a model from Ollama registry.
-    
-    This operation runs in the background. Use /models/pull/status/{model_name} 
+
+    This operation runs in the background. Use /models/pull/status/{model_name}
     to check progress.
     """
     model_name = request.model_name
     ollama_host = get_ollama_host()
-    
+
     # Check if already pulling
     if model_name in _pull_tasks and _pull_tasks[model_name].get("status") == "pulling":
         return OllamaPullResponse(
@@ -181,14 +181,14 @@ async def pull_model(request: OllamaPullRequest, background_tasks: BackgroundTas
             model_name=model_name,
             message="Model is already being pulled"
         )
-    
+
     # Initialize tracking
     _pull_tasks[model_name] = {"status": "starting", "progress": "0%"}
-    
+
     async def do_pull():
         try:
             _pull_tasks[model_name] = {"status": "pulling", "progress": "0%"}
-            
+
             async with httpx.AsyncClient(timeout=3600.0) as client:  # 1 hour timeout
                 async with client.stream(
                     "POST",
@@ -207,15 +207,15 @@ async def pull_model(request: OllamaPullRequest, background_tasks: BackgroundTas
                                     _pull_tasks[model_name] = {"status": "completed", "progress": "100%"}
                             except json.JSONDecodeError:
                                 pass
-            
+
             _pull_tasks[model_name] = {"status": "completed", "progress": "100%"}
-            
+
         except Exception as e:
             logger.error(f"Error pulling model {model_name}: {e}")
             _pull_tasks[model_name] = {"status": "error", "progress": str(e)}
-    
+
     background_tasks.add_task(do_pull)
-    
+
     return OllamaPullResponse(
         status="started",
         model_name=model_name,
@@ -228,7 +228,7 @@ async def pull_status(model_name: str):
     """Get the status of a model pull operation."""
     if model_name not in _pull_tasks:
         return {"status": "unknown", "model_name": model_name, "message": "No pull operation found"}
-    
+
     return {
         "model_name": model_name,
         **_pull_tasks[model_name]
@@ -239,14 +239,14 @@ async def pull_status(model_name: str):
 async def delete_model(model_name: str):
     """Delete an Ollama model."""
     ollama_host = get_ollama_host()
-    
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.delete(
                 f"{ollama_host}/api/delete",
                 json={"name": model_name}
             )
-            
+
             if response.status_code == 200:
                 return {
                     "status": "deleted",
@@ -263,7 +263,7 @@ async def delete_model(model_name: str):
                     status_code=response.status_code,
                     detail=f"Failed to delete model: {response.text}"
                 )
-                
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
@@ -283,7 +283,7 @@ async def delete_model(model_name: str):
 async def generate_text(request: OllamaGenerateRequest):
     """Generate text using an Ollama model (non-streaming)."""
     ollama_host = get_ollama_host()
-    
+
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
@@ -297,7 +297,7 @@ async def generate_text(request: OllamaGenerateRequest):
             )
             response.raise_for_status()
             data = response.json()
-            
+
             return OllamaGenerateResponse(
                 model=data.get("model", request.model),
                 response=data.get("response", ""),
@@ -305,7 +305,7 @@ async def generate_text(request: OllamaGenerateRequest):
                 total_duration=data.get("total_duration"),
                 eval_count=data.get("eval_count"),
             )
-            
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
@@ -332,13 +332,13 @@ async def get_config():
 async def update_config(config: OllamaConfigUpdate):
     """
     Update Ollama configuration.
-    
+
     Note: This updates the environment variable for the current process.
     For persistent changes, update the .env file or Docker environment.
     """
     if config.ollama_host:
         os.environ["OLLAMA_HOST"] = config.ollama_host
-        
+
     return {
         "status": "updated",
         "ollama_host": get_ollama_host(),

@@ -1,8 +1,8 @@
 {
   "id": "simple_reflection_interaction_pipeline_v2",
   "description": "A simple pipeline with separate reflections per participant, interaction with specific identities, and summary.",
-  "identity_id": "Neutral", 
-  "ethical_guidance_id": "Neutral", 
+  "identity_id": "Neutral",
+  "ethical_guidance_id": "Neutral",
   "stages": [
     {
       "id": "nimh_reflection",

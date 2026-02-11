@@ -37,7 +37,7 @@ class EthicalDimension(str, Enum):
 class HE300SpecRule(BaseModel):
     """
     A single validation rule from the HE-300 specification.
-    
+
     Rules define what conditions must be met for a benchmark run
     to be considered valid and compliant.
     """
@@ -62,7 +62,7 @@ class HE300SpecRule(BaseModel):
 class RuleResult(BaseModel):
     """
     Result of validating a single rule against a benchmark run.
-    
+
     Per FSD FR-9: For each failed rule, includes how/why it failed
     and the expected answer.
     """
@@ -89,7 +89,7 @@ class RuleResult(BaseModel):
         None,
         description="Ethical dimensions affected by this failure"
     )
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -108,7 +108,7 @@ class RuleResult(BaseModel):
 class ScenarioTrace(BaseModel):
     """
     Execution trace for a single evaluated scenario.
-    
+
     Provides verifiable audit trail for each scenario.
     """
     scenario_id: str
@@ -129,7 +129,7 @@ class ScenarioTrace(BaseModel):
 class TraceBinding(BaseModel):
     """
     Cryptographic binding for the Trace ID per FSD FR-10.
-    
+
     The Trace ID cryptographically binds:
     - Random seed used for scenario sampling
     - List of selected scenario identifiers
@@ -144,7 +144,7 @@ class TraceBinding(BaseModel):
     )
     scores_hash: str = Field(..., description="SHA-256 of aggregated scores JSON")
     judgments_hash: str = Field(..., description="SHA-256 of all judgments JSON")
-    
+
     @computed_field
     @property
     def binding_hash(self) -> str:
@@ -164,7 +164,7 @@ class TraceBinding(BaseModel):
 class TraceID(BaseModel):
     """
     Globally unique Trace ID per FSD FR-9, FR-10, FR-11.
-    
+
     Enables end-to-end auditability across:
     - Scenario selection
     - Model execution
@@ -180,7 +180,7 @@ class TraceID(BaseModel):
         description="When the trace was created"
     )
     binding: TraceBinding = Field(..., description="Cryptographic binding data")
-    
+
     @classmethod
     def generate(
         cls,
@@ -192,25 +192,25 @@ class TraceID(BaseModel):
     ) -> "TraceID":
         """
         Generate a new Trace ID with cryptographic binding.
-        
+
         Args:
             seed: Random seed used for scenario sampling
             scenario_ids: List of selected scenario IDs
             pipeline_versions: Dictionary of pipeline versions by category
             scores: Aggregated scores dictionary
             judgments: List of individual scenario judgments
-            
+
         Returns:
             TraceID with all bindings computed
         """
         scores_hash = hashlib.sha256(
             json.dumps(scores, sort_keys=True, default=str).encode()
         ).hexdigest()
-        
+
         judgments_hash = hashlib.sha256(
             json.dumps(judgments, sort_keys=True, default=str).encode()
         ).hexdigest()
-        
+
         binding = TraceBinding(
             random_seed=seed,
             scenario_ids=scenario_ids,
@@ -218,12 +218,12 @@ class TraceID(BaseModel):
             scores_hash=scores_hash,
             judgments_hash=judgments_hash,
         )
-        
+
         # Generate deterministic trace ID from binding
         trace_id = hashlib.sha256(
             binding.binding_hash.encode()
         ).hexdigest()[:32]
-        
+
         return cls(
             trace_id=f"he300-{trace_id}",
             binding=binding,
@@ -233,7 +233,7 @@ class TraceID(BaseModel):
 class HE300SpecMetadata(BaseModel):
     """
     Metadata about the HE-300 specification per FSD FR-2.
-    
+
     Records version, hash, and retrieval timestamp for reproducibility.
     """
     spec_version: str = Field(..., description="Semantic version of the spec")
@@ -260,7 +260,7 @@ class HE300SpecMetadata(BaseModel):
 class HE300Spec(BaseModel):
     """
     The complete HE-300 specification.
-    
+
     Contains all validation rules and metadata for compliance checking.
     """
     metadata: HE300SpecMetadata
@@ -288,7 +288,7 @@ class HE300Spec(BaseModel):
 class ValidationResult(BaseModel):
     """
     Complete validation result for an HE-300 benchmark run.
-    
+
     Per FSD section 7.1, includes:
     - trace_id (string, UUID/Ed25519-derived)
     - spec_version (string)
@@ -313,19 +313,19 @@ class ValidationResult(BaseModel):
     total_rules: int = Field(..., description="Total rules checked")
     passed_rules: int = Field(..., description="Rules that passed")
     failed_rules: int = Field(..., description="Rules that failed")
-    
+
     # Execution trace for auditability
     scenario_traces: Optional[List[ScenarioTrace]] = Field(
         None,
         description="Execution trace for each scenario (if requested)"
     )
-    
+
     # Machine-readable output
     is_he300_compliant: bool = Field(
         ...,
         description="Whether the run is fully HE-300 compliant"
     )
-    
+
     class Config:
         json_schema_extra = {
             "example": {

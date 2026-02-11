@@ -79,7 +79,7 @@ EVALUATION_REGISTRY = {
 
 async def evaluate_result_with_llm(actual: Any, expected: Any, engine_instance: 'EthicsEngine', **kwargs) -> Dict[str, Any]: # Use direct type hint now
     logger.info(f"evaluate_result_with_llm: Comparing Actual='{actual}' vs Expected='{expected}'")
-    
+
     neutral_identity = engine_instance.get_identity("Neutral")
     agentic_guidance = engine_instance.get_guidance("Agentic")
 

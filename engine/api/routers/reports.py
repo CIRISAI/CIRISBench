@@ -200,15 +200,15 @@ def get_signing_key() -> bytes:
 def sign_content(content: str) -> ReportSignature:
     """Create a signature for report content."""
     import hmac
-    
+
     # Hash the content
     content_hash = hashlib.sha256(content.encode()).hexdigest()
     timestamp = datetime.now(timezone.utc).isoformat()
-    
+
     # Create HMAC signature
     message = f"{content_hash}:{timestamp}".encode()
     signature = hmac.new(get_signing_key(), message, hashlib.sha256).hexdigest()
-    
+
     return ReportSignature(
         algorithm="sha256+hmac",
         content_hash=content_hash,
@@ -220,16 +220,16 @@ def sign_content(content: str) -> ReportSignature:
 def verify_signature(content: str, signature: ReportSignature) -> bool:
     """Verify a report signature."""
     import hmac
-    
+
     # Recalculate content hash
     content_hash = hashlib.sha256(content.encode()).hexdigest()
     if content_hash != signature.content_hash:
         return False
-    
+
     # Verify HMAC
     message = f"{signature.content_hash}:{signature.timestamp}".encode()
     expected = hmac.new(get_signing_key(), message, hashlib.sha256).hexdigest()
-    
+
     return hmac.compare_digest(signature.signature, expected)
 
 
@@ -238,12 +238,12 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
     """Generate a Markdown report with optional Jekyll frontmatter."""
     lines = []
     summary = request.summary
-    
+
     # Jekyll frontmatter
     if request.jekyll_frontmatter:
         title = request.title or f"HE-300 Benchmark Report - {summary.batch_id}"
         description = request.description or f"Ethics benchmark results for {summary.model_name}"
-        
+
         lines.append("---")
         lines.append(f"layout: report")
         lines.append(f"title: \"{title}\"")
@@ -263,7 +263,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
             lines.append(f"  timestamp: \"{signature.timestamp}\"")
         lines.append("---")
         lines.append("")
-    
+
     # Title and summary
     lines.append(f"# HE-300 Ethics Benchmark Report")
     lines.append("")
@@ -273,7 +273,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
     lines.append(f"**Guidance:** {summary.guidance_id}  ")
     lines.append(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
     lines.append("")
-    
+
     # Overall Results
     lines.append("## Overall Results")
     lines.append("")
@@ -286,7 +286,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
     lines.append(f"| Total Errors | {summary.total_errors} |")
     lines.append(f"| Processing Time | {summary.processing_time_ms:.1f} ms |")
     lines.append("")
-    
+
     # Category Breakdown
     lines.append("## Results by Category")
     lines.append("")
@@ -295,7 +295,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
     for cat in summary.categories:
         lines.append(f"| {cat.category} | {cat.total} | {cat.correct} | {cat.accuracy:.2%} | {cat.avg_latency_ms:.1f} ms |")
     lines.append("")
-    
+
     # Accuracy chart (text-based for Markdown compatibility)
     lines.append("### Accuracy by Category")
     lines.append("")
@@ -307,7 +307,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
         lines.append(f"{cat.category:20} |{bar}| {cat.accuracy:.1%}")
     lines.append("```")
     lines.append("")
-    
+
     # Individual scenarios (if requested and available)
     if request.include_scenarios and request.scenarios:
         lines.append("## Scenario Details")
@@ -315,18 +315,18 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
         lines.append("<details>")
         lines.append("<summary>Click to expand individual scenario results</summary>")
         lines.append("")
-        
+
         # Group by category
         by_category: Dict[str, List[ScenarioDetail]] = {}
         for s in request.scenarios:
             if s.category not in by_category:
                 by_category[s.category] = []
             by_category[s.category].append(s)
-        
+
         for category, scenarios in by_category.items():
             lines.append(f"### {category.title()}")
             lines.append("")
-            
+
             for s in scenarios[:10]:  # Limit to first 10 per category to avoid huge reports
                 status_icon = "✅" if s.is_correct else "❌"
                 lines.append(f"#### {s.scenario_id} {status_icon}")
@@ -338,14 +338,14 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
                 if s.model_response:
                     lines.append(f"> {s.model_response[:300]}{'...' if len(s.model_response) > 300 else ''}")
                 lines.append("")
-            
+
             if len(scenarios) > 10:
                 lines.append(f"*...and {len(scenarios) - 10} more scenarios in this category*")
                 lines.append("")
-        
+
         lines.append("</details>")
         lines.append("")
-    
+
     # Signature block
     if signature:
         lines.append("---")
@@ -363,12 +363,12 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
         lines.append("")
         lines.append("To verify: recalculate SHA-256 of report content (excluding this signature block) and compare.")
         lines.append("")
-    
+
     # Footer
     lines.append("---")
     lines.append("")
     lines.append("*Generated by [EthicsEngine Enterprise](https://github.com/rng-ops/ethicsengine_enterprise) HE-300 Benchmark System*")
-    
+
     return "\n".join(lines)
 
 
@@ -376,11 +376,11 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     """Generate an HTML report with full test data and export capabilities."""
     summary = request.summary
     title = request.title or f"HE-300 Benchmark Report - {summary.batch_id}"
-    
+
     # Calculate category data for chart
     cat_labels = [cat.category for cat in summary.categories]
     cat_accuracies = [cat.accuracy * 100 for cat in summary.categories]
-    
+
     # Build signature block separately to avoid nested f-string issues
     if signature:
         signature_block = f'''
@@ -401,7 +401,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     else:
         signature_block = ''
         signature_json = 'null'
-    
+
     # Build scenarios HTML table
     # Label mapping: 0 = ETHICAL, 1 = UNETHICAL (per Hendrycks Ethics dataset convention)
     scenarios_rows = []
@@ -459,9 +459,9 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             </td>
         </tr>
         ''')
-    
+
     scenarios_table = ''.join(scenarios_rows)
-    
+
     # Build scenarios JSON for export (properly escaped)
     scenarios_json = json.dumps([{
         "scenario_id": s.scenario_id,
@@ -480,7 +480,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         "evaluations_agree": s.evaluations_agree,
         "disagreement_note": s.disagreement_note
     } for s in request.scenarios], indent=2)
-    
+
     # Build summary JSON
     summary_json = json.dumps({
         "batch_id": summary.batch_id,
@@ -513,7 +513,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         "completed_at": summary.completed_at,
         "processing_time_ms": summary.processing_time_ms
     }, indent=2)
-    
+
     html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -978,7 +978,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     <script>
         // Get embedded report data
         const reportData = JSON.parse(document.getElementById('reportData').textContent);
-        
+
         // Scenario details lookup
         const scenariosMap = new Map();
         reportData.scenarios.forEach(s => scenariosMap.set(s.scenario_id, s));
@@ -1084,18 +1084,18 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             const category = document.getElementById('categoryFilter').value;
             const status = document.getElementById('statusFilter').value;
             const search = document.getElementById('searchFilter').value.toLowerCase();
-            
+
             document.querySelectorAll('.scenario-row').forEach(row => {{
                 const rowCategory = row.dataset.category;
                 const isCorrect = row.classList.contains('correct');
                 const text = row.textContent.toLowerCase();
-                
+
                 let show = true;
                 if (category && rowCategory !== category) show = false;
                 if (status === 'correct' && !isCorrect) show = false;
                 if (status === 'incorrect' && isCorrect) show = false;
                 if (search && !text.includes(search)) show = false;
-                
+
                 row.style.display = show ? '' : 'none';
             }});
         }}
@@ -1124,10 +1124,10 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         function objectToXml(obj, indent = 0) {{
             let xml = '';
             const spaces = '  '.repeat(indent);
-            
+
             for (const [key, value] of Object.entries(obj)) {{
                 const tagName = key.replace(/[^a-zA-Z0-9_]/g, '_');
-                
+
                 if (value === null || value === undefined) {{
                     xml += `${{spaces}}<${{tagName}}/>\\n`;
                 }} else if (Array.isArray(value)) {{
@@ -1165,7 +1165,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         function exportCSV() {{
             const headers = ['scenario_id', 'category', 'input_text', 'expected_label', 'predicted_label', 'is_correct', 'latency_ms', 'model_response', 'error'];
             let csv = headers.join(',') + '\\n';
-            
+
             reportData.scenarios.forEach(s => {{
                 const row = headers.map(h => {{
                     let val = s[h];
@@ -1178,7 +1178,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                 }});
                 csv += row.join(',') + '\\n';
             }});
-            
+
             const blob = new Blob([csv], {{ type: 'text/csv' }});
             downloadBlob(blob, `he300-report-${{reportData.summary.batch_id}}.csv`);
         }}
@@ -1211,20 +1211,20 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                 <body>
                     <h1>HE-300 Ethics Benchmark Report</h1>
                     <p><strong>Batch:</strong> ${{reportData.summary.batch_id}} | <strong>Model:</strong> ${{reportData.summary.model_name}} | <strong>Date:</strong> ${{new Date(reportData.generated_at).toLocaleString()}}</p>
-                    
+
                     <div class="stats">
                         <div class="stat"><div class="stat-value">${{(reportData.summary.overall_accuracy * 100).toFixed(1)}}%</div><div class="stat-label">Accuracy</div></div>
                         <div class="stat"><div class="stat-value">${{reportData.summary.total_scenarios}}</div><div class="stat-label">Total</div></div>
                         <div class="stat"><div class="stat-value">${{reportData.summary.correct_predictions}}</div><div class="stat-label">Correct</div></div>
                         <div class="stat"><div class="stat-value">${{reportData.summary.avg_latency_ms.toFixed(0)}}ms</div><div class="stat-label">Avg Latency</div></div>
                     </div>
-                    
+
                     <h2>Results by Category</h2>
                     <table>
                         <tr><th>Category</th><th>Total</th><th>Correct</th><th>Accuracy</th></tr>
                         ${{reportData.summary.categories.map(c => `<tr><td>${{c.category}}</td><td>${{c.total}}</td><td>${{c.correct}}</td><td>${{(c.accuracy * 100).toFixed(1)}}%</td></tr>`).join('')}}
                     </table>
-                    
+
                     <h2>Scenario Results</h2>
                     <table>
                         <tr><th>ID</th><th>Category</th><th>Input</th><th>Expected</th><th>Predicted</th><th>Correct</th></tr>
@@ -1239,7 +1239,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                             </tr>
                         `).join('')}}
                     </table>
-                    
+
                     ${{reportData.signature ? `
                         <h2>Report Signature</h2>
                         <p style="font-family: monospace; font-size: 8pt; background: #f8fafc; padding: 10px; border-radius: 5px;">
@@ -1268,7 +1268,7 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     </script>
 </body>
 </html>'''
-    
+
     return html
 
 
@@ -1282,13 +1282,13 @@ def generate_json_report(request: ReportRequest, signature: Optional[ReportSigna
         "summary": request.summary.model_dump(),
         "format": request.format.value,
     }
-    
+
     if request.include_scenarios and request.scenarios:
         report["scenarios"] = [s.model_dump() for s in request.scenarios]
-    
+
     if signature:
         report["signature"] = signature.model_dump()
-    
+
     return json.dumps(report, indent=2, default=str)
 
 
@@ -1298,21 +1298,21 @@ def generate_json_report(request: ReportRequest, signature: Optional[ReportSigna
 async def get_benchmark_results():
     """
     Get available benchmark results for report generation.
-    
+
     This endpoint returns all available HE-300 benchmark results that can be
     used to generate reports. Results are loaded from the benchmark_results
     directory and from stored traces.
     """
     results: List[BenchmarkResultItem] = []
-    
+
     # Load from benchmark results directory
     for result_file in BENCHMARK_RESULTS_DIR.glob("*.json"):
         try:
             data = json.loads(result_file.read_text())
-            
+
             # Extract batch_id from filename or data
             batch_id = data.get("batch_id", result_file.stem)
-            
+
             # Extract scores from summary or root level (agentbeats format)
             scores = {}
             if "summary" in data:
@@ -1362,17 +1362,17 @@ async def get_benchmark_results():
             ))
         except Exception as e:
             logger.warning(f"Failed to load benchmark result from {result_file}: {e}")
-    
+
     # Also load from generated reports metadata
     for meta_file in REPORTS_DIR.glob("*.meta.json"):
         try:
             meta_data = json.loads(meta_file.read_text())
             batch_id = meta_data.get("batch_id", "")
-            
+
             # Skip if we already have this batch_id
             if any(r.id == batch_id for r in results):
                 continue
-            
+
             results.append(BenchmarkResultItem(
                 id=batch_id,
                 model_name=meta_data.get("model_name", "Unknown"),
@@ -1383,10 +1383,10 @@ async def get_benchmark_results():
             ))
         except Exception as e:
             logger.warning(f"Failed to load metadata from {meta_file}: {e}")
-    
+
     # Sort by created_at descending
     results.sort(key=lambda r: r.created_at, reverse=True)
-    
+
     return BenchmarkResultsResponse(results=results, total=len(results))
 
 
@@ -1394,16 +1394,16 @@ async def get_benchmark_results():
 async def generate_report(request: ReportRequest):
     """
     Generate a signed static report from benchmark results.
-    
+
     Supports multiple output formats:
     - **markdown**: Jekyll-compatible Markdown with YAML frontmatter
     - **html**: Self-contained HTML page for static hosting
     - **json**: Machine-readable JSON format
-    
+
     Reports can be cryptographically signed for integrity verification.
     """
     report_id = str(uuid.uuid4())[:8]
-    
+
     # Generate report content (without signature first)
     if request.format == ReportFormat.MARKDOWN:
         content = generate_markdown_report(request, None)
@@ -1414,12 +1414,12 @@ async def generate_report(request: ReportRequest):
     else:
         content = generate_json_report(request, None)
         ext = "json"
-    
+
     # Sign if requested
     signature = None
     if request.sign_report:
         signature = sign_content(content)
-        
+
         # Regenerate with signature included
         if request.format == ReportFormat.MARKDOWN:
             content = generate_markdown_report(request, signature)
@@ -1427,12 +1427,12 @@ async def generate_report(request: ReportRequest):
             content = generate_html_report(request, signature)
         else:
             content = generate_json_report(request, signature)
-    
+
     # Save to disk
     filename = f"report_{request.batch_id}_{report_id}.{ext}"
     file_path = REPORTS_DIR / filename
     file_path.write_text(content, encoding="utf-8")
-    
+
     # Create metadata
     metadata = ReportMetadata(
         report_id=report_id,
@@ -1445,13 +1445,13 @@ async def generate_report(request: ReportRequest):
         file_size=file_path.stat().st_size,
         signature=signature,
     )
-    
+
     # Also save metadata
     meta_path = REPORTS_DIR / f"report_{request.batch_id}_{report_id}.meta.json"
     meta_path.write_text(metadata.model_dump_json(indent=2), encoding="utf-8")
-    
+
     logger.info(f"Generated report {report_id} for batch {request.batch_id} in {request.format} format")
-    
+
     return ReportResponse(
         status="generated",
         report_id=report_id,
@@ -1465,7 +1465,7 @@ async def generate_report(request: ReportRequest):
 async def list_reports():
     """List all generated reports."""
     reports = []
-    
+
     for meta_file in REPORTS_DIR.glob("*.meta.json"):
         try:
             meta_data = json.loads(meta_file.read_text())
@@ -1476,10 +1476,10 @@ async def list_reports():
             reports.append(ReportMetadata(**meta_data))
         except Exception as e:
             logger.warning(f"Failed to load report metadata from {meta_file}: {e}")
-    
+
     # Sort by creation date (newest first)
     reports.sort(key=lambda r: r.created_at, reverse=True)
-    
+
     return ReportListResponse(reports=reports, total=len(reports))
 
 
@@ -1496,13 +1496,13 @@ async def download_report(report_id: str):
                 media_type = "text/html"
             else:
                 media_type = "application/json"
-            
+
             return FileResponse(
                 path=report_file,
                 media_type=media_type,
                 filename=report_file.name,
             )
-    
+
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Report {report_id} not found"
@@ -1521,7 +1521,7 @@ async def get_report_metadata(report_id: str):
             return ReportMetadata(**meta_data)
         except Exception as e:
             logger.warning(f"Failed to load report metadata: {e}")
-    
+
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Report {report_id} not found"
@@ -1532,17 +1532,17 @@ async def get_report_metadata(report_id: str):
 async def delete_report(report_id: str):
     """Delete a generated report."""
     deleted = False
-    
+
     for file in REPORTS_DIR.glob(f"report_*_{report_id}.*"):
         file.unlink()
         deleted = True
-    
+
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Report {report_id} not found"
         )
-    
+
     return {"status": "deleted", "report_id": report_id}
 
 
@@ -1550,7 +1550,7 @@ async def delete_report(report_id: str):
 async def verify_report_signature(content: str, signature: ReportSignature):
     """Verify the integrity of a report using its signature."""
     is_valid = verify_signature(content, signature)
-    
+
     return {
         "is_valid": is_valid,
         "content_hash": hashlib.sha256(content.encode()).hexdigest(),

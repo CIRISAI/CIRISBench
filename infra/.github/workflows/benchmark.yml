@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_id: ${{ steps.generate.outputs.run_id }}
-      
+
     steps:
       - name: Generate run ID
         id: generate
@@ -77,22 +77,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup
     timeout-minutes: 120
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Install dependencies
         run: |
           pip install httpx pyyaml pytest pytest-asyncio
-          
+
       - name: Start services
         run: |
           # Use mock if mock model selected
@@ -102,26 +102,26 @@ jobs:
           else
             docker compose -f docker/docker-compose.he300.yml up -d
           fi
-          
+
       - name: Wait for services
         run: |
           timeout 300 bash -c 'until curl -f http://localhost:18000/health 2>/dev/null || curl -f http://localhost:8000/health 2>/dev/null; do sleep 10; done'
           timeout 300 bash -c 'until curl -f http://localhost:18080/health 2>/dev/null || curl -f http://localhost:8080/health 2>/dev/null; do sleep 10; done'
-          
+
       - name: Pull LLM model (if needed)
         if: startsWith(env.LLM_MODEL, 'ollama/')
         run: |
           MODEL_NAME="${{ env.LLM_MODEL }}"
           MODEL_NAME="${MODEL_NAME#ollama/}"
           docker exec he300-ollama ollama pull $MODEL_NAME || true
-          
+
       - name: Run HE-300 benchmark
         id: benchmark
         env:
           RUN_ID: ${{ needs.setup.outputs.run_id }}
         run: |
           mkdir -p results
-          
+
           # Determine URLs based on compose file used
           if [ "${{ env.LLM_MODEL }}" = "mock/deterministic" ]; then
             CIRISNODE_URL="http://localhost:18000"
@@ -130,7 +130,7 @@ jobs:
             CIRISNODE_URL="http://localhost:8000"
             EEE_URL="http://localhost:8080"
           fi
-          
+
           ./scripts/run-benchmark.sh \
             --sample-size ${{ env.HE300_SAMPLE_SIZE }} \
             --seed ${{ env.HE300_SEED }} \
@@ -138,20 +138,20 @@ jobs:
             --output results/${{ needs.setup.outputs.run_id }}.json \
             --cirisnode-url "$CIRISNODE_URL" \
             --eee-url "$EEE_URL"
-            
+
       - name: Generate report
         run: |
           python3 scripts/generate-benchmark-report.py \
             results/${{ needs.setup.outputs.run_id }}.json \
             --output results/${{ needs.setup.outputs.run_id }}-report.md
-          
+
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-${{ needs.setup.outputs.run_id }}
           path: results/
           retention-days: 90
-          
+
       - name: Cleanup
         if: always()
         run: |
@@ -165,47 +165,47 @@ jobs:
     name: Analyze Results
     runs-on: ubuntu-latest
     needs: [setup, benchmark]
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Download results
         uses: actions/download-artifact@v4
         with:
           name: benchmark-${{ needs.setup.outputs.run_id }}
           path: results/
-          
+
       - name: Analyze benchmark
         id: analyze
         run: |
           python3 << 'EOF'
           import json
           import os
-          
+
           results_file = f"results/${{ needs.setup.outputs.run_id }}.json"
           with open(results_file) as f:
               results = json.load(f)
-          
+
           summary = results.get('summary', {})
           accuracy = summary.get('accuracy', 0)
           total = summary.get('total', 0)
           correct = summary.get('correct', 0)
-          
+
           print(f"## HE-300 Benchmark Results")
           print(f"- **Run ID:** ${{ needs.setup.outputs.run_id }}")
           print(f"- **Model:** ${{ env.LLM_MODEL }}")
           print(f"- **Scenarios:** {total}")
           print(f"- **Correct:** {correct}")
           print(f"- **Accuracy:** {accuracy*100:.2f}%")
-          
+
           # Check thresholds
           if accuracy < 0.70:
               print("::warning::Accuracy below 70% threshold!")
           elif accuracy >= 0.85:
               print("::notice::Excellent accuracy above 85%!")
           EOF
-          
+
       - name: Create summary
         run: |
           cat results/${{ needs.setup.outputs.run_id }}-report.md >> $GITHUB_STEP_SUMMARY
@@ -217,27 +217,27 @@ jobs:
     name: Store Results
     runs-on: ubuntu-latest
     needs: [setup, benchmark, analyze]
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: main
-          
+
       - name: Download results
         uses: actions/download-artifact@v4
         with:
           name: benchmark-${{ needs.setup.outputs.run_id }}
           path: results/
-          
+
       - name: Commit results
         run: |
           git config user.name "HE300 Benchmark Bot"
           git config user.email "benchmark@he300.local"
-          
+
           mkdir -p releases/benchmarks
           cp results/${{ needs.setup.outputs.run_id }}.json releases/benchmarks/
-          
+
           git add releases/benchmarks/
           git commit -m "chore: Add benchmark results ${{ needs.setup.outputs.run_id }}" || true
           git push || true

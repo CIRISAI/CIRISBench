@@ -41,13 +41,13 @@ ports:
 docker:
   build_target: production
   mount_source: false
-  
+
 # Logging
 logging:
   level: INFO
   format: json
   include_timestamps: true
-  
+
 # Monitoring
 monitoring:
   enabled: true

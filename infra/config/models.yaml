@@ -35,7 +35,7 @@ models:
     benchmark_config:
       batch_timeout_multiplier: 1.0
       recommended_batch_size: 50
-      
+
   ollama/llama3.2:3b:
     provider: ollama
     model_id: llama3.2:3b
@@ -51,7 +51,7 @@ models:
     benchmark_config:
       batch_timeout_multiplier: 0.5
       recommended_batch_size: 50
-      
+
   ollama/mistral:
     provider: ollama
     model_id: mistral
@@ -68,7 +68,7 @@ models:
     benchmark_config:
       batch_timeout_multiplier: 0.8
       recommended_batch_size: 50
-      
+
   ollama/phi3:
     provider: ollama
     model_id: phi3
@@ -105,7 +105,7 @@ models:
       batch_timeout_multiplier: 0.5
       recommended_batch_size: 50
       rate_limit_rpm: 500
-      
+
   openai/gpt-4o:
     provider: openai
     model_id: gpt-4o
@@ -192,16 +192,16 @@ providers:
     base_url_env: OLLAMA_BASE_URL
     default_base_url: http://ollama:11434
     health_endpoint: /api/tags
-    
+
   openai:
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
     organization_env: OPENAI_ORG_ID
-    
+
   anthropic:
     base_url: https://api.anthropic.com
     api_key_env: ANTHROPIC_API_KEY
-    
+
   mock:
     description: "Local mock provider for testing"
     deterministic: true
@@ -213,17 +213,17 @@ selection_rules:
   # CI/CD environments always use mock
   ci:
     force_model: mock/deterministic
-    
+
   # Test environments prefer mock
   test:
     force_model: mock/deterministic
-    
+
   # Development allows any available model
   development:
     allowed_providers:
       - ollama
       - mock
-      
+
   # Staging allows cloud providers
   staging:
     allowed_providers:
@@ -231,7 +231,7 @@ selection_rules:
       - openai
       - anthropic
       - mock
-      
+
   # Production restricts to verified models
   production:
     allowed_providers:

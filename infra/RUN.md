@@ -208,14 +208,14 @@ The `he300-benchmark.yml` workflow provides the full CI/CD pipeline.
 // Jenkinsfile example
 pipeline {
     agent any
-    
+
     stages {
         stage('Setup') {
             steps {
                 sh './scripts/setup-submodules.sh'
             }
         }
-        
+
         stage('Test EthicsEngine') {
             steps {
                 dir('submodules/ethicsengine') {
@@ -224,7 +224,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Test CIRISNode') {
             steps {
                 dir('submodules/cirisnode') {
@@ -233,14 +233,14 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Benchmark') {
             steps {
                 sh './scripts/run_he300_benchmark.sh --mock --sample-size 50'
             }
         }
     }
-    
+
     post {
         always {
             archiveArtifacts 'results/*.json'

@@ -137,7 +137,7 @@ model WebhookEvent {
   source    String // github, jenkins, local
   eventType String // run_started, run_completed, etc.
   payload   Json
-  
+
   processed Boolean @default(false)
   error     String?
 

@@ -29,31 +29,31 @@ def get_api_base_url():
 def check_api_connection(base_url=None):
     """
     Check if the API server is running and responsive.
-    
+
     Args:
         base_url: The base URL of the API server
-        
+
     Returns:
         A tuple (is_connected, message)
     """
     if base_url is None:
         base_url = get_api_base_url()
-        
+
     try:
         # Try a basic health endpoint first
         health_url = f"{base_url}/health"
         health_response = requests.get(health_url, timeout=5)
-        
+
         if health_response.status_code == 200:
             return True, f"API server is running at {base_url}"
-        
+
         # If health endpoint fails, try the root endpoint
         root_response = requests.get(base_url, timeout=5)
         if root_response.status_code == 200:
             return True, f"API server root endpoint is responding at {base_url}"
-            
+
         return False, f"API server responded with status code {health_response.status_code}"
-        
+
     except requests.exceptions.ConnectionError:
         return False, f"Could not connect to API server at {base_url}. The server might not be running."
     except requests.exceptions.Timeout:
@@ -61,7 +61,7 @@ def check_api_connection(base_url=None):
     except Exception as e:
         return False, f"Error checking API connection: {str(e)}"
 
-    
+
 def handle_api_error(response, context="API call"):
     """Handles common API errors and displays messages."""
     try:
@@ -83,7 +83,7 @@ def handle_api_error(response, context="API call"):
 def get_definitions(max_retries=1):
     """Fetches the list of pipeline definition IDs with retry support."""
     url = f"{get_api_base_url()}/pipelines/definitions"
-    
+
     for attempt in range(max_retries + 1):
         try:
             response = requests.get(url, timeout=10)
@@ -95,7 +95,7 @@ def get_definitions(max_retries=1):
             st.error(f"Error fetching definitions: {e}")
             if attempt < max_retries:
                 st.warning(f"Retry {attempt+1}/{max_retries} for fetching definitions...")
-    
+
     return []
 
 @st.cache_data(ttl=60)
@@ -237,13 +237,13 @@ def display_server_status():
     st.sidebar.header("🖥️ Server Status")
 
     is_connected, message = check_api_connection()
-    
+
     if is_connected:
         st.sidebar.success(message)
     else:
         st.sidebar.error(message)
         st.sidebar.warning("⚠️ The application may not function correctly without a connection to the API server.")
-    
+
     # Add server configuration options
     with st.sidebar.expander("Server Configuration"):
         new_api_url = st.text_input("API Base URL", value=get_api_base_url())
@@ -251,7 +251,7 @@ def display_server_status():
             # Update the API_BASE_URL through session state instead of global
             st.session_state.api_base_url = new_api_url
             st.rerun()  # Rerun the app with the new URL
-            
+
 def display_dashboard():
     st.header("🚀 Pipeline Dashboard")
 
@@ -487,28 +487,28 @@ def set_llm():
     setter = LLMSetter()
 
     llm_config = st.selectbox("LLM Configuration", options=["OpenAI", "Ollama"])
-    
+
     if llm_config == "OpenAI":
         st.session_state.llm = "openai"
-        
+
         api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key:
             api_key = st.text_input("OpenAI API Key", type="password", key="openai_key")
-        
+
         model = st.selectbox(
-            "OpenAI Model", 
-            options=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"], 
+            "OpenAI Model",
+            options=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
             index=0,
             key="openai_model"
         )
-        
+
         openai_dict = {
             "api_type": "openai",
             "model": model,
             "api_key": api_key,
             "base_url": "https://api.openai.com/v1"
         }
-        
+
         if st.button("Set OpenAI Configuration"):
             if not api_key:
                 st.error("API Key is required for OpenAI")
@@ -517,18 +517,18 @@ def set_llm():
                 if config:
                     st.success(f"Successfully configured {model}")
                     st.session_state.current_config = openai_dict
-        
+
         return openai_dict
-    
+
     elif llm_config == "Ollama":
         st.session_state.llm = "ollama"
-        
+
         base_url = st.text_input(
-            "Ollama Base URL", 
+            "Ollama Base URL",
             value="http://127.0.0.1:11434/v1",
             key="ollama_url"
         )
-        
+
         # Fetch available models from the Ollama API
         available_models = []
         try:
@@ -563,18 +563,18 @@ def set_llm():
         else:
             st.warning("No models found on the Ollama system. Please check the base URL or add models manually.")
             model = st.text_input(
-                "Ollama Model (Enter manually if not listed)", 
+                "Ollama Model (Enter manually if not listed)",
                 value="gemma3:4b-it-q8_0",
                 key="ollama_model"
             )
-        
+
         ollama_dict = {
             "api_type": "ollama",
             "base_url": base_url,
             "model": model,
             "api_key": "None"  # Ollama doesn't need an API key
         }
-        
+
         if st.button("Set Ollama Configuration"):
             if not base_url or not model:
                 st.error("Base URL and Model are required for Ollama")
@@ -592,9 +592,9 @@ def set_llm():
                         st.error(f"Failed to verify Ollama model '{model}' at {base_url}. Response code: {response.status_code}")
                 except Exception as e:
                     st.error(f"Error verifying Ollama model '{model}': {e}")
-        
+
         return ollama_dict
-    
+
 # --- Main App Layout ---
 st.set_page_config(layout="wide", page_title="Ethics Engine UI")
 

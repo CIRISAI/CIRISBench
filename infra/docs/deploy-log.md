@@ -89,7 +89,7 @@ ssh ubuntu@163.192.58.165 "sudo install -m 0755 -d /etc/apt/keyrings && curl -fs
 - This key will be trusted for ALL future Docker package installations
 - If this key were compromised, malicious packages could be installed
 
-**Firewall Considerations**: 
+**Firewall Considerations**:
 - Requires outbound HTTPS to `download.docker.com`
 
 **Mitigation**: Verify key fingerprint:
@@ -465,7 +465,7 @@ ssh ubuntu@163.192.58.165 "curl -s http://localhost:8000/api/v1/health"
 
 **Security Implications**: 🟢 Low
 
-**Result**: 
+**Result**:
 ```json
 {"status":"ok","version":1,"pubkey":"dummy-pubkey","message":"CIRISNode is healthy"}
 ```
@@ -503,7 +503,7 @@ ssh ubuntu@163.192.58.165 "sudo ufw status && sudo iptables -L INPUT -n | head -
 
 **Security Implications**: 🟢 Low (read-only)
 
-**Result**: 
+**Result**:
 - UFW: inactive
 - iptables: ACCEPT policy (no rules)
 
@@ -784,7 +784,7 @@ curl -s http://localhost:8080/he300/batch -X POST -H "Content-Type: application/
 
 ### ✅ Successfully Deployed
 1. CIRISNode API (port 8000)
-2. EthicsEngine API (port 8080) 
+2. EthicsEngine API (port 8080)
 3. PostgreSQL database
 4. Redis cache
 5. HE-300 benchmark endpoints

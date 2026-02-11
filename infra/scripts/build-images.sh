@@ -119,13 +119,13 @@ echo ""
 build_cirisnode() {
     local context="$SUBMODULES_DIR/cirisnode"
     local image="$REGISTRY/$ORG/cirisnode:$TAG"
-    
+
     if [ ! -d "$context" ]; then
         log_error "CIRISNode not found at $context"
     fi
-    
+
     log_info "Building CIRISNode: $image"
-    
+
     docker build \
         $NO_CACHE \
         --platform "$PLATFORM" \
@@ -135,9 +135,9 @@ build_cirisnode() {
         -t "$image" \
         -t "$REGISTRY/$ORG/cirisnode:latest" \
         "$context"
-    
+
     log_success "Built: $image"
-    
+
     if [ "$PUSH" = true ]; then
         log_info "Pushing $image..."
         docker push "$image"
@@ -149,13 +149,13 @@ build_cirisnode() {
 build_eee() {
     local context="$SUBMODULES_DIR/ethicsengine"
     local image="$REGISTRY/$ORG/ethicsengine-enterprise:$TAG"
-    
+
     if [ ! -d "$context" ]; then
         log_error "EthicsEngine not found at $context"
     fi
-    
+
     log_info "Building EthicsEngine Enterprise: $image"
-    
+
     docker build \
         $NO_CACHE \
         --platform "$PLATFORM" \
@@ -165,9 +165,9 @@ build_eee() {
         -t "$image" \
         -t "$REGISTRY/$ORG/ethicsengine-enterprise:latest" \
         "$context"
-    
+
     log_success "Built: $image"
-    
+
     if [ "$PUSH" = true ]; then
         log_info "Pushing $image..."
         docker push "$image"

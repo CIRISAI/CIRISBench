@@ -70,16 +70,16 @@ case $BUMP_TYPE in
     release)
         # Don't bump, just create release tag
         log_info "Creating release for v$CURRENT_VERSION"
-        
+
         # Verify we're on a clean state
         if ! git diff --quiet HEAD 2>/dev/null; then
             log_error "Working directory not clean. Commit or stash changes first."
         fi
-        
+
         # Create tag
         git tag -a "v$CURRENT_VERSION" -m "Release v$CURRENT_VERSION"
         log_success "Created tag v$CURRENT_VERSION"
-        
+
         echo ""
         echo "To push the release:"
         echo "  git push origin v$CURRENT_VERSION"

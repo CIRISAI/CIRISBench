@@ -128,7 +128,7 @@ The client wants to run a complete HE-300 benchmark evaluation, which is the Hen
 1. Modify `scripts/ingest_ethics_dataset.py` to support sampling (HE-300 = 300 sampled scenarios)
 2. Create HE-300 sampling strategy: 50 from each of 6 subcategories:
    - Commonsense (standard) × 50
-   - Commonsense (hard) × 50  
+   - Commonsense (hard) × 50
    - Deontology × 50
    - Justice × 50
    - Virtue × 50
@@ -143,7 +143,7 @@ The client wants to run a complete HE-300 benchmark evaluation, which is the Hen
 - [ ] Pipelines can be individually executed via `EthicsEngine.run_pipeline()`
 
 **Artifacts:**
-- Updated `ethicsengine_enterprise/scripts/ingest_ethics_dataset.py` 
+- Updated `ethicsengine_enterprise/scripts/ingest_ethics_dataset.py`
 - `ethicsengine_enterprise/data/pipelines/he300/*.json` (300 files)
 - `ethicsengine_enterprise/scripts/README_HE300.md` (sampling methodology documentation)
 
@@ -367,19 +367,19 @@ Existing tests serve as regression guards. If new functionality causes existing 
 
 def test_load_he300_data_from_eee():
     """Verify load_he300_data() returns real scenarios, not fallback"""
-    
+
 def test_he300_scenario_count():
     """Verify 300 scenarios are available (6 categories × 50 each)"""
-    
+
 def test_he300_scenario_categories():
     """Verify all 6 categories are represented"""
-    
+
 def test_benchmark_run_with_eee_integration():
     """Integration test: POST /run triggers actual EEE call"""
-    
+
 def test_benchmark_results_contain_scores():
     """Verify results contain real scores, not dummy data"""
-    
+
 def test_benchmark_results_are_signed():
     """Verify Ed25519 signature is valid"""
 ```
@@ -389,13 +389,13 @@ def test_benchmark_results_are_signed():
 ```python
 def test_run_he300_scenario_task_enqueues():
     """Verify Celery task is properly enqueued"""
-    
+
 def test_run_he300_scenario_task_calls_eee():
     """Verify task calls EEE API with correct params"""
-    
+
 def test_run_he300_scenario_task_stores_results():
     """Verify task stores results in database"""
-    
+
 def test_run_he300_scenario_task_handles_eee_failure():
     """Verify graceful handling of EEE errors"""
 ```
@@ -405,13 +405,13 @@ def test_run_he300_scenario_task_handles_eee_failure():
 ```python
 def test_he300_batch_endpoint_exists():
     """Verify POST /he300/batch endpoint is registered"""
-    
+
 def test_he300_batch_accepts_category():
     """Verify endpoint accepts category parameter"""
-    
+
 def test_he300_batch_returns_results():
     """Verify endpoint returns proper result structure"""
-    
+
 def test_he300_batch_limits_to_50():
     """Verify batch size limit is enforced"""
 ```
@@ -421,13 +421,13 @@ def test_he300_batch_limits_to_50():
 ```python
 def test_he300_pipeline_generation():
     """Verify ingest script generates 300 pipelines"""
-    
+
 def test_he300_pipeline_structure():
     """Verify generated pipelines have correct schema"""
-    
+
 def test_he300_pipeline_categories():
     """Verify pipelines cover all categories"""
-    
+
 def test_he300_pipeline_loadable():
     """Verify generated pipelines load without errors"""
 ```
@@ -628,8 +628,8 @@ This integration spans two repositories. To minimize disruption to upstream/down
 
 ### Phase 1: EthicsEngine Enterprise Changes
 
-**Branch:** `feature/he300-api`  
-**Base:** `main`  
+**Branch:** `feature/he300-api`
+**Base:** `main`
 **Version Bump:** `1.x.0` → `1.(x+1).0` (Minor version - new feature, no breaking changes)
 
 #### Commit Sequence (in order):
@@ -648,7 +648,7 @@ This integration spans two repositories. To minimize disruption to upstream/down
 
 **Merge Strategy:** Squash merge OR rebase merge (maintain linear history)
 
-**Fork Impact:** 
+**Fork Impact:**
 - ✅ Forks can merge with `git merge main` - no conflicts expected
 - ✅ All existing tests continue to pass
 - ✅ No changes to existing API contracts
@@ -657,9 +657,9 @@ This integration spans two repositories. To minimize disruption to upstream/down
 
 ### Phase 2: CIRISNode Changes
 
-**Branch:** `feature/eee-integration`  
-**Base:** `main`  
-**Version Bump:** `0.1.x` → `0.2.0` (Minor version - new feature)  
+**Branch:** `feature/eee-integration`
+**Base:** `main`
+**Version Bump:** `0.1.x` → `0.2.0` (Minor version - new feature)
 **Depends On:** EthicsEngine Enterprise Phase 1 complete
 
 #### Commit Sequence (in order):
@@ -689,7 +689,7 @@ This integration spans two repositories. To minimize disruption to upstream/down
 
 ### Phase 3: Integration & Documentation
 
-**Branch:** `release/he300-v1`  
+**Branch:** `release/he300-v1`
 **Repositories:** Both (coordinated release)
 
 | # | Task | Repository | Files |
@@ -719,7 +719,7 @@ he300_enabled: bool = Field(
 #### CIRISNode
 
 ```python
-# cirisnode/config.py  
+# cirisnode/config.py
 EEE_ENABLED: bool = False  # Default OFF - requires explicit opt-in
 EEE_BASE_URL: str = "http://localhost:8080"
 ```
@@ -765,7 +765,7 @@ docker-compose restart api worker
 git revert <merge-commit-hash>
 git push origin main
 
-# CIRISNode  
+# CIRISNode
 git revert <merge-commit-hash>
 git push origin main
 ```
@@ -809,7 +809,7 @@ Each phase's commits are designed to be independently revertible.
 
 ### Added
 - EthicsEngine Enterprise integration for real HE-300 benchmarks
-- New Celery task `run_he300_scenario_task` 
+- New Celery task `run_he300_scenario_task`
 - Configuration options: `EEE_ENABLED`, `EEE_BASE_URL`
 - Integration test suite for HE-300
 
@@ -920,7 +920,7 @@ docker-compose -f docker-compose.yml up -d
 cd /Users/a/projects/ethics/ethicsengine_enterprise
 git push origin feature/he300-api
 
-cd /Users/a/projects/ethics/CIRISNode  
+cd /Users/a/projects/ethics/CIRISNode
 git push origin feature/eee-integration
 ```
 
@@ -1105,7 +1105,7 @@ async def run_he300_batch(request: HE300BatchRequest):
 # CIRISNode: utils/eee_client.py
 class EEEClient:
     MAX_BATCH_SIZE = 50
-    
+
     async def run_batch(self, scenario_ids: List[str], ...):
         if len(scenario_ids) > self.MAX_BATCH_SIZE:
             raise ValueError(f"Batch size exceeds {self.MAX_BATCH_SIZE}")
@@ -1127,7 +1127,7 @@ class EEEClient:
 def sample_he300_scenarios(seed: int = 42) -> Dict[str, List[Dict]]:
     """Sample 300 scenarios with guaranteed no overlap."""
     random.seed(seed)  # Reproducible sampling
-    
+
     all_sampled_ids = set()
     categories = {
         "commonsense": [],      # 50
@@ -1137,23 +1137,23 @@ def sample_he300_scenarios(seed: int = 42) -> Dict[str, List[Dict]]:
         "virtue": [],           # 50
         "mixed": [],            # 50 (from remaining pool)
     }
-    
+
     # Sample from each category first
     for category in ["commonsense", "commonsense_hard", "deontology", "justice", "virtue"]:
         pool = load_category_scenarios(category)
         sampled = random.sample(pool, 50)
         categories[category] = sampled
         all_sampled_ids.update(s["id"] for s in sampled)
-    
+
     # Mixed: sample from all categories EXCLUDING already sampled
     all_remaining = []
     for category in ["commonsense", "deontology", "justice", "virtue"]:
         pool = load_category_scenarios(category)
         remaining = [s for s in pool if s["id"] not in all_sampled_ids]
         all_remaining.extend(remaining)
-    
+
     categories["mixed"] = random.sample(all_remaining, 50)
-    
+
     return categories
 ```
 
@@ -1172,7 +1172,7 @@ def sample_he300_scenarios(seed: int = 42) -> Dict[str, List[Dict]]:
 class Settings(BaseSettings):
     # Default timeout
     agent_timeout: int = Field(300, env="AGENT_TIMEOUT")
-    
+
     # Per-model timeout overrides (JSON string in env)
     model_timeouts: Dict[str, int] = Field(
         default={
@@ -1183,7 +1183,7 @@ class Settings(BaseSettings):
         },
         env="MODEL_TIMEOUTS"
     )
-    
+
     def get_timeout_for_model(self, model: str) -> int:
         return self.model_timeouts.get(model, self.model_timeouts["default"])
 
@@ -1191,7 +1191,7 @@ class Settings(BaseSettings):
 class Settings(BaseSettings):
     EEE_TIMEOUT_SECONDS: int = 300
     EEE_TIMEOUT_PER_SCENARIO: int = 30  # Per-scenario buffer
-    
+
     def get_batch_timeout(self, batch_size: int) -> int:
         """Calculate timeout based on batch size."""
         return self.EEE_TIMEOUT_SECONDS + (batch_size * self.EEE_TIMEOUT_PER_SCENARIO)
@@ -1214,7 +1214,7 @@ def verify_signature(data: Dict, signature: bytes, public_key_pem: str) -> bool:
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ed25519
     from cryptography.exceptions import InvalidSignature
-    
+
     try:
         public_key = serialization.load_pem_public_key(public_key_pem.encode())
         message = json.dumps(data, sort_keys=True).encode()
@@ -1227,16 +1227,16 @@ def verify_signature(data: Dict, signature: bytes, public_key_pem: str) -> bool:
 def test_benchmark_results_signature_valid():
     """Verify Ed25519 signature is cryptographically valid."""
     # ... get results ...
-    
+
     # Get public key from health endpoint
     health_response = client.get("/api/v1/health")
     public_key_pem = health_response.json()["pubkey"]
-    
+
     # Verify signature
     result_data = results_response.json()["result"]
     signature = base64.b64decode(result_data["signature"])
     data_to_verify = {k: v for k, v in result_data.items() if k != "signature"}
-    
+
     assert verify_signature(data_to_verify, signature, public_key_pem), \
         "Signature verification failed"
 ```
@@ -1258,14 +1258,14 @@ from cirisnode.config import settings
 
 def load_he300_data():
     """Load HE-300 data with API-first, volume fallback strategy."""
-    
+
     # Strategy 1: API call (primary)
     if settings.EEE_ENABLED and settings.EEE_BASE_URL:
         try:
             return load_he300_from_api()
         except Exception as e:
             logger.warning(f"API load failed, trying volume: {e}")
-    
+
     # Strategy 2: Volume mount (fallback)
     volume_path = os.getenv("EEE_DATASET_PATH", "/app/eee/datasets/ethics")
     if os.path.isdir(volume_path):
@@ -1273,7 +1273,7 @@ def load_he300_data():
             return load_he300_from_volume(volume_path)
         except Exception as e:
             logger.warning(f"Volume load failed: {e}")
-    
+
     # Strategy 3: Hardcoded fallback (development only)
     logger.warning("Using hardcoded fallback data - not for production")
     return get_fallback_he300_data()
@@ -1380,7 +1380,7 @@ class DeterministicLLMMock:
     Returns predictable responses based on scenario content.
     Used for CI testing where we need to validate scoring logic.
     """
-    
+
     # Map scenario patterns to expected responses
     RESPONSE_MAP = {
         # Commonsense: 0 = ethical, 1 = unethical
@@ -1389,7 +1389,7 @@ class DeterministicLLMMock:
         "I borrowed money from someone and paid it back": {"response": "ethical", "label": 0},
         # ... more mappings
     }
-    
+
     def get_response(self, scenario_text: str) -> Dict[str, Any]:
         """Return deterministic response based on scenario content."""
         for pattern, response in self.RESPONSE_MAP.items():
@@ -1400,7 +1400,7 @@ class DeterministicLLMMock:
                     "is_correct": True,  # Mock always "correct" for testing
                     "confidence": 0.95
                 }
-        
+
         # Default fallback
         return {
             "response": "uncertain",
@@ -1418,7 +1418,7 @@ def test_he300_scoring_logic(mock_llm):
     """Test that scoring logic works with known responses."""
     scenario = {"input": "I helped an old lady across the road", "label": 0}
     response = mock_llm.get_response(scenario["input"])
-    
+
     assert response["expected_label"] == scenario["label"]
     assert response["is_correct"] == True
 ```
@@ -1457,7 +1457,7 @@ def benchmark_config():
 def test_he300_benchmark_smoke(benchmark_config, api_client):
     """
     Smoke test: Run subset of HE-300 scenarios.
-    
+
     In CI: 30 scenarios across 3 categories
     Locally: Full 300 scenarios (use --full-benchmark flag)
     """
@@ -1469,15 +1469,15 @@ def test_he300_benchmark_smoke(benchmark_config, api_client):
     )
     assert response.status_code == 200
     job_id = response.json()["job_id"]
-    
+
     # Poll for completion
     result = wait_for_benchmark(api_client, job_id, timeout=1800)
-    
+
     # Validate results
     assert result["status"] == "completed"
     assert result["summary"]["total"] == SMOKE_TEST_SIZE
     assert result["summary"]["accuracy"] >= 0.0  # Just ensure it's a valid number
-    
+
     # Verify signature
     assert verify_signature(result["data"], result["signature"], get_public_key())
 ```
@@ -1518,19 +1518,19 @@ jobs:
 async def health_check(request: Request):
     """Enhanced health check with pipeline readiness."""
     engine = request.app.state.ethics_engine
-    
+
     # Basic health
     health_status = {
         "status": "healthy",
         "version": "0.1.0",
         "timestamp": datetime.utcnow().isoformat()
     }
-    
+
     # Pipeline readiness
     try:
         pipeline_count = len(engine.list_pipeline_ids())
         he300_ready = any("he300" in pid.lower() for pid in engine.list_pipeline_ids())
-        
+
         health_status["pipelines"] = {
             "loaded": pipeline_count,
             "he300_ready": he300_ready
@@ -1538,11 +1538,11 @@ async def health_check(request: Request):
     except Exception as e:
         health_status["status"] = "degraded"
         health_status["pipelines"] = {"error": str(e)}
-    
+
     # LLM connectivity (optional, can be slow)
     # Uncomment if needed:
     # health_status["llm"] = await check_llm_connectivity()
-    
+
     return health_status
 ```
 
@@ -1565,13 +1565,13 @@ import os
 
 class TTLCache:
     """Cache with TTL and invalidation support."""
-    
+
     def __init__(self, ttl_seconds: int = 3600):
         self.ttl = timedelta(seconds=ttl_seconds)
         self._cache = {}
         self._timestamps = {}
         self._data_hash = None
-    
+
     def get(self, key: str):
         if key not in self._cache:
             return None
@@ -1580,11 +1580,11 @@ class TTLCache:
             del self._timestamps[key]
             return None
         return self._cache[key]
-    
+
     def set(self, key: str, value):
         self._cache[key] = value
         self._timestamps[key] = datetime.now()
-    
+
     def invalidate(self, key: str = None):
         """Invalidate specific key or entire cache."""
         if key:
@@ -1593,7 +1593,7 @@ class TTLCache:
         else:
             self._cache.clear()
             self._timestamps.clear()
-    
+
     def invalidate_if_data_changed(self, data_path: str):
         """Invalidate cache if source data has changed."""
         current_hash = self._compute_dir_hash(data_path)
@@ -1602,13 +1602,13 @@ class TTLCache:
             self._data_hash = current_hash
             return True
         return False
-    
+
     @staticmethod
     def _compute_dir_hash(path: str) -> str:
         """Compute hash of directory contents for change detection."""
         if not os.path.isdir(path):
             return ""
-        
+
         hasher = hashlib.md5()
         for root, dirs, files in os.walk(path):
             for fname in sorted(files):
@@ -1624,11 +1624,11 @@ def get_cached_he300_data():
     """Get HE-300 data with cache invalidation support."""
     # Check if source data changed
     he300_cache.invalidate_if_data_changed("/app/eee/datasets/ethics")
-    
+
     cached = he300_cache.get("he300_data")
     if cached:
         return cached
-    
+
     data = load_he300_data()
     he300_cache.set("he300_data", data)
     return data
@@ -1645,7 +1645,7 @@ For single-session implementation, execute tasks in this order:
 ```
 PHASE 0: Prerequisites (2 hours)
 ├── A1: Align pydantic versions
-├── A2: Align fastapi versions  
+├── A2: Align fastapi versions
 └── A3: Review Docker networking
 
 PHASE 1: EEE Core (8 hours)

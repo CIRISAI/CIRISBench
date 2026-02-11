@@ -1,7 +1,7 @@
 # =============================================================================
 # Feature Flags Configuration
 # =============================================================================
-# 
+#
 # Feature flags control optional functionality across the HE-300 integration.
 # These can be overridden via environment variables (prefix: FF_)
 #
@@ -24,7 +24,7 @@ flags:
       development: true
       staging: true
       production: true
-    
+
   # HE-300 Benchmark
   HE300_ENABLED:
     description: "Enable HE-300 benchmark endpoints"
@@ -33,7 +33,7 @@ flags:
       development: true
       staging: true
       production: true
-      
+
   # Mock LLM (for testing without real LLM)
   MOCK_LLM:
     description: "Use mock LLM responses for testing"
@@ -55,7 +55,7 @@ flags:
       development: false
       staging: true
       production: true
-      
+
   JWT_REQUIRED:
     description: "Require JWT authentication for API endpoints"
     default: true
@@ -74,7 +74,7 @@ flags:
       development: true
       staging: true
       production: true
-      
+
   ASYNC_PROCESSING:
     description: "Use async/Celery for benchmark processing"
     default: true
@@ -93,7 +93,7 @@ flags:
       development: true
       staging: false
       production: false
-      
+
   DETAILED_LOGGING:
     description: "Enable detailed request/response logging"
     default: false
@@ -101,7 +101,7 @@ flags:
       development: true
       staging: false
       production: false
-      
+
   TRACE_REQUESTS:
     description: "Enable request tracing (OpenTelemetry)"
     default: false
@@ -120,7 +120,7 @@ flags:
       development: true
       staging: false
       production: false
-      
+
   EXPERIMENTAL_MULTI_MODEL:
     description: "Allow multiple models in single benchmark"
     default: false
@@ -141,7 +141,7 @@ rollout:
       percentage: 5
     beta:
       percentage: 25
-    
+
   # Feature-specific rollouts
   feature_rollouts:
     EXPERIMENTAL_BATCH_STREAMING:

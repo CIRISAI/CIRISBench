@@ -90,7 +90,7 @@ This document describes the architecture for deploying and running HE-300 benchm
 
 **Connection**: Test runner → `https://gpu-host.example.com:8000`
 
-**Security**: 
+**Security**:
 - HTTPS with Let's Encrypt certificate
 - API key authentication
 - IP allowlist (GitHub Actions IP ranges)
@@ -181,12 +181,12 @@ models:
 # Network configuration
 network:
   mode: "direct"  # direct, wireguard, tailscale
-  
+
   direct:
     https: true
     certbot: true
     domain: "gpu-server.example.com"
-  
+
   wireguard:
     enabled: false
     interface: "wg0"
@@ -195,7 +195,7 @@ network:
     peer_public_key: ""  # Test runner's public key
     peer_endpoint: ""    # Test runner's public IP:port
     peer_allowed_ips: "10.0.0.1/32"
-  
+
   tailscale:
     enabled: false
     auth_key: ""  # Tailscale auth key
@@ -205,19 +205,19 @@ services:
   cirisnode:
     port: 8000
     replicas: 1
-  
+
   ethicsengine:
     port: 8080
     replicas: 1
-  
+
   ollama:
     port: 11434
     gpu_layers: -1  # All layers on GPU
-  
+
   redis:
     port: 6379
     persistence: true
-  
+
   postgres:
     port: 5432
     persistence: true
@@ -244,7 +244,7 @@ models:
       Q5_K_M: "llama3.2:3b-instruct-q5_K_M"
       Q8_0: "llama3.2:3b-instruct-q8_0"
       fp16: "llama3.2:3b-instruct-fp16"
-  
+
   llama-3.2-8B-instruct:
     ollama_name: "llama3.2:8b-instruct-q4_K_M"
     context_length: 8192
@@ -254,7 +254,7 @@ models:
       Q5_K_M: "llama3.2:8b-instruct-q5_K_M"
       Q8_0: "llama3.2:8b-instruct-q8_0"
       fp16: "llama3.2:8b-instruct-fp16"
-  
+
   # Mistral variants
   mistral-7B-instruct:
     ollama_name: "mistral:7b-instruct-q4_K_M"
@@ -274,7 +274,7 @@ gpu_profiles:
       - "mistral-7B-instruct"
     max_batch_size: 50
     concurrent_requests: 4
-    
+
   a100-40gb:
     max_model_size: "70B"
     recommended_models:
@@ -405,10 +405,10 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest  # or self-hosted with WireGuard
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       # Option A: Direct HTTPS connection
       - name: Run benchmark (HTTPS)
         if: ${{ !inputs.use_wireguard }}
@@ -416,7 +416,7 @@ jobs:
           CIRISNODE_URL: https://${{ inputs.gpu_host }}:8000
           API_KEY: ${{ secrets.CIRISNODE_API_KEY }}
         run: ./scripts/run_he300_benchmark.sh
-      
+
       # Option B: WireGuard tunnel
       - name: Setup WireGuard
         if: ${{ inputs.use_wireguard }}
@@ -424,7 +424,7 @@ jobs:
           sudo apt-get install -y wireguard
           echo "${{ secrets.WG_PRIVATE_KEY }}" | sudo tee /etc/wireguard/wg0.conf
           sudo wg-quick up wg0
-      
+
       - name: Run benchmark (WireGuard)
         if: ${{ inputs.use_wireguard }}
         env:
@@ -439,13 +439,13 @@ jobs:
 jobs:
   benchmark:
     runs-on: self-hosted  # Label for GPU machine
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Start stack
         run: docker compose -f docker/docker-compose.gpu.yml up -d
-      
+
       - name: Run benchmark
         env:
           CIRISNODE_URL: http://localhost:8000
@@ -627,7 +627,7 @@ ollama:
   gpu_layers: -1           # All layers on GPU
   num_parallel: 4          # 4 concurrent requests
   num_ctx: 8192            # Full context window
-  
+
 services:
   max_batch_size: 50       # Optimal for A10 memory
   queue_size: 200          # Deep queue for throughput
@@ -643,7 +643,7 @@ services:
 # CIRISNode health
 curl http://localhost:8000/health
 
-# EthicsEngine health  
+# EthicsEngine health
 curl http://localhost:8080/health
 
 # Ollama health
@@ -662,7 +662,7 @@ services:
     image: prom/prometheus
     ports:
       - "9090:9090"
-  
+
   grafana:
     image: grafana/grafana
     ports:
@@ -817,7 +817,7 @@ resource "vault_jwt_auth_backend_role" "he300_deploy" {
   bound_claims = {
     repository = "rng-ops/he300-integration"
   }
-  
+
   user_claim = "actor"
   role_type  = "jwt"
 }
@@ -832,7 +832,7 @@ jobs:
     permissions:
       id-token: write  # Required for OIDC
       contents: read
-    
+
     steps:
       - name: Import secrets from Vault
         uses: hashicorp/vault-action@v2
@@ -845,7 +845,7 @@ jobs:
             secret/data/he300/api-keys/cirisnode api_key | CIRISNODE_API_KEY ;
             secret/data/he300/wireguard/test-runner private_key | WG_PRIVATE_KEY ;
             secret/data/he300/jwt/signing-key secret | JWT_SECRET
-      
+
       - name: Run benchmark
         env:
           CIRISNODE_API_KEY: ${{ env.CIRISNODE_API_KEY }}
@@ -859,13 +859,13 @@ jobs:
 vault_fetch_secrets() {
     local vault_addr="$1"
     local vault_token="$2"
-    
+
     # Fetch all required secrets
     export CIRISNODE_API_KEY=$(vault kv get -field=api_key secret/he300/api-keys/cirisnode)
     export POSTGRES_PASSWORD=$(vault kv get -field=password secret/he300/database/postgres)
     export REDIS_PASSWORD=$(vault kv get -field=password secret/he300/database/redis)
     export JWT_SECRET=$(vault kv get -field=secret secret/he300/jwt/signing-key)
-    
+
     # WireGuard keys
     export WG_PRIVATE_KEY=$(vault kv get -field=private_key secret/he300/wireguard/gpu-host)
 }
@@ -874,7 +874,7 @@ vault_fetch_secrets() {
 vault_login_approle() {
     local role_id="$1"
     local secret_id="$2"
-    
+
     VAULT_TOKEN=$(vault write -field=token auth/approle/login \
         role_id="$role_id" \
         secret_id="$secret_id")
@@ -892,7 +892,7 @@ rotation:
     notify:
       - slack: "#he300-ops"
       - email: "ops@example.com"
-  
+
   database:
     postgres:
       interval: 7d
@@ -900,11 +900,11 @@ rotation:
     redis:
       interval: 30d
       method: static
-  
+
   wireguard:
     interval: 90d
     method: manual  # Requires coordinated rotation
-  
+
   jwt:
     signing_key:
       interval: 90d
@@ -1008,12 +1008,12 @@ resource "lambdalabs_instance" "gpu_host" {
   name          = "he300-gpu-${var.environment}"
   instance_type = var.instance_type
   region        = var.region
-  
+
   ssh_key_names = [var.ssh_key_name]
-  
+
   # Custom image with pre-installed stack
   image_id = var.custom_image_id != "" ? var.custom_image_id : null
-  
+
   tags = {
     Environment = var.environment
     Purpose     = "he300-benchmark"
@@ -1024,24 +1024,24 @@ resource "lambdalabs_instance" "gpu_host" {
 # Alternative: AWS GPU instance
 resource "aws_instance" "gpu_host" {
   count = var.cloud_provider == "aws" ? 1 : 0
-  
+
   ami           = data.aws_ami.gpu_base.id
   instance_type = "g5.xlarge"  # NVIDIA A10G
-  
+
   vpc_security_group_ids = [aws_security_group.he300.id]
   subnet_id              = var.subnet_id
-  
+
   user_data = templatefile("${path.module}/userdata.sh.tpl", {
     vault_addr     = var.vault_addr
     vault_role_id  = var.vault_role_id
     environment    = var.environment
   })
-  
+
   root_block_device {
     volume_size = 200
     volume_type = "gp3"
   }
-  
+
   tags = {
     Name        = "he300-gpu-${var.environment}"
     Environment = var.environment
@@ -1053,7 +1053,7 @@ resource "aws_security_group" "he300" {
   name        = "he300-${var.environment}"
   description = "HE-300 benchmark stack"
   vpc_id      = var.vpc_id
-  
+
   # SSH
   ingress {
     from_port   = 22
@@ -1061,7 +1061,7 @@ resource "aws_security_group" "he300" {
     protocol    = "tcp"
     cidr_blocks = var.admin_cidrs
   }
-  
+
   # CIRISNode API
   ingress {
     from_port   = 8000
@@ -1069,7 +1069,7 @@ resource "aws_security_group" "he300" {
     protocol    = "tcp"
     cidr_blocks = var.allowed_cidrs
   }
-  
+
   # EthicsEngine API
   ingress {
     from_port   = 8080
@@ -1077,7 +1077,7 @@ resource "aws_security_group" "he300" {
     protocol    = "tcp"
     cidr_blocks = var.allowed_cidrs
   }
-  
+
   # WireGuard
   ingress {
     from_port   = 51820
@@ -1085,7 +1085,7 @@ resource "aws_security_group" "he300" {
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  
+
   # Results dashboard
   ingress {
     from_port   = 3000
@@ -1093,7 +1093,7 @@ resource "aws_security_group" "he300" {
     protocol    = "tcp"
     cidr_blocks = var.allowed_cidrs
   }
-  
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -1147,15 +1147,15 @@ source "amazon-ebs" "he300_gpu" {
   region        = "us-west-2"
   source_ami    = var.base_ami
   ssh_username  = "ubuntu"
-  
+
   ami_description = "HE-300 Benchmark GPU Image with CIRISNode + EthicsEngine"
-  
+
   tags = {
     Name        = "he300-gpu"
     BuildTime   = "{{timestamp}}"
     Environment = "base"
   }
-  
+
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
     volume_size           = 200
@@ -1166,17 +1166,17 @@ source "amazon-ebs" "he300_gpu" {
 
 build {
   sources = ["source.amazon-ebs.he300_gpu"]
-  
+
   # Install Docker
   provisioner "shell" {
     script = "${path.root}/scripts/install-docker.sh"
   }
-  
+
   # Install NVIDIA drivers + container toolkit
   provisioner "shell" {
     script = "${path.root}/scripts/install-nvidia.sh"
   }
-  
+
   # Install Vault CLI
   provisioner "shell" {
     inline = [
@@ -1185,7 +1185,7 @@ build {
       "sudo apt-get update && sudo apt-get install -y vault"
     ]
   }
-  
+
   # Pre-pull Docker images
   provisioner "shell" {
     inline = [
@@ -1196,13 +1196,13 @@ build {
       "sudo docker pull redis:7-alpine"
     ]
   }
-  
+
   # Copy installer scripts
   provisioner "file" {
     source      = "../../installer/"
     destination = "/opt/he300/"
   }
-  
+
   # Pre-configure systemd services
   provisioner "shell" {
     script = "${path.root}/scripts/install-he300.sh"
@@ -1253,20 +1253,20 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment || 'dev' }}
-    
+
     defaults:
       run:
         working-directory: terraform/environments/${{ inputs.environment || 'dev' }}
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-west-2
-      
+
       - name: Import Vault secrets
         uses: hashicorp/vault-action@v2
         with:
@@ -1276,22 +1276,22 @@ jobs:
           secrets: |
             secret/data/he300/terraform/aws access_key | AWS_ACCESS_KEY_ID ;
             secret/data/he300/terraform/aws secret_key | AWS_SECRET_ACCESS_KEY
-      
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
-      
+
       - name: Terraform Init
         run: terraform init
-      
+
       - name: Terraform Plan
         if: inputs.action == 'plan' || github.event_name == 'pull_request'
         run: terraform plan -out=tfplan
-      
+
       - name: Terraform Apply
         if: inputs.action == 'apply'
         run: terraform apply -auto-approve tfplan
-      
+
       - name: Terraform Destroy
         if: inputs.action == 'destroy'
         run: terraform destroy -auto-approve
@@ -1434,36 +1434,36 @@ model BenchmarkRun {
   id            String   @id @default(cuid())
   createdAt     DateTime @default(now())
   completedAt   DateTime?
-  
+
   // Configuration
   model         String   // llama-3.2-8B-instruct
   quantization  String   // Q4_K_M
   sampleSize    Int      // 260
   seed          Int      // 42
-  
+
   // Environment
   gpuType       String?  // a10, a100, m1
   gpuMemory     Int?     // GB
   runnerType    String   // github-actions, local, jenkins
   environment   String   // dev, staging, prod
-  
+
   // Status
   status        RunStatus @default(PENDING)
   errorMessage  String?
-  
+
   // Results
   results       CategoryResult[]
   artifacts     Artifact[]
-  
+
   // Metrics
   duration      Int?     // seconds
   tokensPerSec  Float?
-  
+
   // Git info
   commitSha     String?
   branch        String?
   prNumber      Int?
-  
+
   @@index([createdAt])
   @@index([model])
   @@index([status])
@@ -1481,19 +1481,19 @@ model CategoryResult {
   id            String   @id @default(cuid())
   runId         String
   run           BenchmarkRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  
+
   category      String   // commonsense, deontology, justice, virtue, mixed
   total         Int      // 50 or 60
   correct       Int
   accuracy      Float    // 0.0 - 1.0
-  
+
   // Detailed metrics
   avgLatency    Float?   // ms per scenario
   avgTokens     Int?     // tokens per response
-  
+
   // Per-scenario results stored as JSON
   scenarios     Json?
-  
+
   @@unique([runId, category])
 }
 
@@ -1501,13 +1501,13 @@ model Artifact {
   id            String   @id @default(cuid())
   runId         String
   run           BenchmarkRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  
+
   type          ArtifactType
   filename      String
   s3Key         String
   size          Int      // bytes
   contentType   String
-  
+
   createdAt     DateTime @default(now())
 }
 
@@ -1523,13 +1523,13 @@ model Model {
   name          String   @unique  // llama-3.2-8B-instruct
   displayName   String   // Llama 3.2 8B Instruct
   provider      String   // ollama, openai, anthropic
-  
+
   // Aggregate stats (updated after each run)
   totalRuns     Int      @default(0)
   avgAccuracy   Float?
   bestAccuracy  Float?
   lastRunAt     DateTime?
-  
+
   @@index([name])
 }
 ```
@@ -1553,7 +1553,7 @@ export function RunCard({ run }: RunCardProps) {
   const overallAccuracy = run.results.reduce(
     (acc, r) => acc + r.correct, 0
   ) / run.results.reduce((acc, r) => acc + r.total, 0)
-  
+
   const statusColors = {
     COMPLETED: "bg-green-500",
     RUNNING: "bg-blue-500",
@@ -1561,7 +1561,7 @@ export function RunCard({ run }: RunCardProps) {
     PENDING: "bg-yellow-500",
     CANCELLED: "bg-gray-500",
   }
-  
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -1591,7 +1591,7 @@ export function RunCard({ run }: RunCardProps) {
             </div>
           ))}
         </div>
-        
+
         <div className="flex justify-between items-center border-t pt-4">
           <div>
             <span className="text-2xl font-bold">
@@ -1640,7 +1640,7 @@ export function RadarChart({ data, showBaseline = true }: RadarChartProps) {
     accuracy: d.accuracy * 100,
     baseline: d.baseline ? d.baseline * 100 : 80,
   }))
-  
+
   return (
     <ResponsiveContainer width="100%" height={400}>
       <RechartsRadar cx="50%" cy="50%" outerRadius="80%" data={chartData}>
@@ -1704,10 +1704,10 @@ export async function POST(request: NextRequest) {
   if (!verifySignature(signature, await request.text())) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
   }
-  
+
   const body = await request.json()
   const data = webhookSchema.parse(body)
-  
+
   // Upsert run
   const run = await prisma.benchmarkRun.upsert({
     where: { id: data.run_id },
@@ -1729,7 +1729,7 @@ export async function POST(request: NextRequest) {
       branch: data.branch,
     },
   })
-  
+
   // Insert results if completed
   if (data.status === "COMPLETED" && data.results) {
     await prisma.categoryResult.createMany({
@@ -1744,7 +1744,7 @@ export async function POST(request: NextRequest) {
       skipDuplicates: true,
     })
   }
-  
+
   return NextResponse.json({ success: true, run_id: run.id })
 }
 
@@ -1768,17 +1768,17 @@ import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  
+
   const model = searchParams.get("model")
   const status = searchParams.get("status")
   const limit = parseInt(searchParams.get("limit") || "20")
   const offset = parseInt(searchParams.get("offset") || "0")
-  
+
   const where = {
     ...(model && { model }),
     ...(status && { status: status as any }),
   }
-  
+
   const [runs, total] = await Promise.all([
     prisma.benchmarkRun.findMany({
       where,
@@ -1791,7 +1791,7 @@ export async function GET(request: NextRequest) {
     }),
     prisma.benchmarkRun.count({ where }),
   ])
-  
+
   return NextResponse.json({
     runs,
     pagination: {
@@ -1889,7 +1889,7 @@ CMD ["node", "server.js"]
 send_webhook() {
     local status="$1"
     local results_file="$2"
-    
+
     curl -X POST "${DASHBOARD_WEBHOOK_URL}/api/webhook" \
         -H "Content-Type: application/json" \
         -H "x-webhook-signature: sha256=$(echo -n "$payload" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | cut -d' ' -f2)" \

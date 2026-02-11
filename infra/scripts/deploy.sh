@@ -120,16 +120,16 @@ esac
 
 if [ "$ROLLBACK" = true ]; then
     log_info "Rolling back to previous deployment..."
-    
+
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would rollback deployment"
         exit 0
     fi
-    
+
     # For Docker Compose, this just restarts with previous images
     docker compose -f "$COMPOSE_FILE" down
     docker compose -f "$COMPOSE_FILE" up -d
-    
+
     log_success "Rollback complete"
     exit 0
 fi
@@ -168,11 +168,11 @@ for i in {1..30}; do
     if curl -sf "http://localhost:8080/health" > /dev/null 2>&1; then
         EEE_HEALTHY=true
     fi
-    
+
     if [ "$CIRISNODE_HEALTHY" = true ] && [ "$EEE_HEALTHY" = true ]; then
         break
     fi
-    
+
     echo -ne "\r  Checking health... ($i/30)"
     sleep 2
 done

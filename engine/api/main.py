@@ -53,7 +53,7 @@ app = FastAPI(
 )
 
 # --- CORS Configuration ---
-# IMPORTANT: CORS middleware must be added FIRST (executes last in chain, 
+# IMPORTANT: CORS middleware must be added FIRST (executes last in chain,
 # but handles preflight before reaching routes)
 _cors_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
 app.add_middleware(

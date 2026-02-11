@@ -21,7 +21,7 @@ llm:
   default_model: ollama/llama3.2
   fallback_model: ollama/mistral
   timeout_multiplier: 1.0
-  
+
 # HE-300 settings
 he300:
   sample_size: 300
@@ -44,14 +44,14 @@ docker:
   build_target: production
   mount_source: false
   restart_policy: always
-  
+
 # Logging
 logging:
   level: WARNING
   format: json
   include_timestamps: true
   log_retention_days: 30
-  
+
 # Monitoring
 monitoring:
   enabled: true
@@ -89,7 +89,7 @@ security:
     enabled: true
     requests_per_minute: 100
     burst: 20
-    
+
 # Backup
 backup:
   enabled: true

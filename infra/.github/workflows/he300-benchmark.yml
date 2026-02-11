@@ -69,31 +69,31 @@ jobs:
   test-eee-api:
     name: "🧪 EthicsEngine HE-300 API"
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout EthicsEngine
         uses: actions/checkout@v4
         with:
           repository: ${{ env.EEE_REPO }}
           ref: ${{ env.EEE_BRANCH }}
-          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov httpx
-          
+
       - name: Run HE-300 API tests
         env:
           FF_MOCK_LLM: "true"
           HE300_ENABLED: "true"
         run: |
           pytest tests/test_he300_api.py -v --tb=short -x
-          
+
       - name: Summary
         if: always()
         run: |
@@ -103,30 +103,30 @@ jobs:
   test-cirisnode:
     name: "🧪 CIRISNode EEE Client"
     runs-on: ubuntu-latest
-    
+
     services:
       redis:
         image: redis:7-alpine
         ports: ['6379:6379']
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
-    
+
     steps:
       - name: Checkout CIRISNode
         uses: actions/checkout@v4
         with:
           repository: ${{ env.CIRISNODE_REPO }}
           ref: ${{ env.CIRISNODE_BRANCH }}
-          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov httpx respx
-          
+
       - name: Run EEE integration tests
         env:
           REDIS_URL: redis://localhost:6379/0
@@ -134,7 +134,7 @@ jobs:
           EEE_ENABLED: "false"
         run: |
           pytest tests/test_he300_integration.py tests/test_celery_he300.py -v --tb=short -x
-          
+
       - name: Summary
         if: always()
         run: |
@@ -149,38 +149,38 @@ jobs:
     runs-on: ${{ github.event.inputs.runner || 'ubuntu-latest' }}
     needs: [test-eee-api, test-cirisnode]
     if: github.event_name == 'workflow_dispatch'
-    
+
     env:
       MODEL: ${{ github.event.inputs.model || 'ollama/llama3.2' }}
       QUANTIZATION: ${{ github.event.inputs.quantization || 'default' }}
       SAMPLE_SIZE: ${{ github.event.inputs.sample_size || '50' }}
       INFERENCE_ENGINE: ${{ github.event.inputs.inference_engine || 'ollama' }}
-    
+
     steps:
       - name: Checkout integration repo
         uses: actions/checkout@v4
         with:
           repository: 'rng-ops/he300-integration'
-          
+
       - name: Checkout CIRISNode
         uses: actions/checkout@v4
         with:
           repository: ${{ env.CIRISNODE_REPO }}
           ref: ${{ env.CIRISNODE_BRANCH }}
           path: submodules/cirisnode
-          
+
       - name: Checkout EthicsEngine
         uses: actions/checkout@v4
         with:
           repository: ${{ env.EEE_REPO }}
           ref: ${{ env.EEE_BRANCH }}
           path: submodules/ethicsengine
-          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          
+
       - name: Collect system info
         id: sysinfo
         run: |
@@ -191,7 +191,7 @@ jobs:
           echo "| Runner | ${{ runner.os }} / ${{ runner.arch }} |" >> $GITHUB_STEP_SUMMARY
           echo "| CPU | $(nproc) cores |" >> $GITHUB_STEP_SUMMARY
           echo "| Memory | $(free -h | awk '/^Mem:/ {print $2}') |" >> $GITHUB_STEP_SUMMARY
-          
+
           # Check for GPU
           if command -v nvidia-smi &> /dev/null; then
             GPU_INFO=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | head -1)
@@ -201,7 +201,7 @@ jobs:
             echo "| GPU | None detected |" >> $GITHUB_STEP_SUMMARY
             echo "gpu_available=false" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Benchmark Configuration" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
@@ -210,38 +210,38 @@ jobs:
           echo "| Quantization | ${{ env.QUANTIZATION }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Sample Size | ${{ env.SAMPLE_SIZE }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Inference Engine | ${{ env.INFERENCE_ENGINE }} |" >> $GITHUB_STEP_SUMMARY
-          
+
       - name: Start Ollama (if needed)
         if: env.INFERENCE_ENGINE == 'ollama'
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
           sleep 5
-          
+
           # Pull model
           MODEL_NAME="${{ env.MODEL }}"
           MODEL_NAME="${MODEL_NAME#ollama/}"
           echo "Pulling model: $MODEL_NAME"
           ollama pull "$MODEL_NAME"
-          
+
       - name: Start services
         run: |
           docker compose -f docker/docker-compose.test.yml up -d
-          
+
           # Wait for services
           echo "Waiting for services..."
           timeout 120 bash -c 'until curl -sf http://localhost:18000/health 2>/dev/null; do sleep 5; done' || true
           timeout 120 bash -c 'until curl -sf http://localhost:18080/health 2>/dev/null; do sleep 5; done' || true
-          
+
       - name: Install benchmark dependencies
         run: |
           pip install httpx pyyaml aiohttp tqdm
-          
+
       - name: Run HE-300 Benchmark
         id: benchmark
         run: |
           mkdir -p results
-          
+
           python3 << 'BENCHMARK_SCRIPT'
           import asyncio
           import httpx
@@ -249,12 +249,12 @@ jobs:
           import time
           import os
           from datetime import datetime
-          
+
           CIRISNODE_URL = "http://localhost:18000"
           EEE_URL = "http://localhost:18080"
           SAMPLE_SIZE = int(os.environ.get("SAMPLE_SIZE", "50"))
           MODEL = os.environ.get("MODEL", "ollama/llama3.2")
-          
+
           async def run_benchmark():
               results = {
                   "timestamp": datetime.utcnow().isoformat(),
@@ -266,7 +266,7 @@ jobs:
                   "scenarios": [],
                   "summary": {}
               }
-              
+
               async with httpx.AsyncClient(timeout=300) as client:
                   # Get catalog
                   try:
@@ -278,13 +278,13 @@ jobs:
                       print(f"Could not fetch catalog: {e}")
                       catalog = {}
                       scenarios = []
-                  
+
                   # Run batch evaluation (mock for now)
                   start_time = time.time()
-                  
+
                   # Get scenario IDs
                   scenario_ids = [s.get('id', s) if isinstance(s, dict) else s for s in scenarios[:SAMPLE_SIZE]]
-                  
+
                   try:
                       batch_resp = await client.post(
                           f"{EEE_URL}/he300/batch",
@@ -298,13 +298,13 @@ jobs:
                   except Exception as e:
                       print(f"Batch evaluation error: {e}")
                       batch_result = {"results": [], "error": str(e)}
-                  
+
                   elapsed = time.time() - start_time
-                  
+
                   # Calculate summary
                   total = len(batch_result.get("results", []))
                   correct = sum(1 for r in batch_result.get("results", []) if r.get("correct", False))
-                  
+
                   results["summary"] = {
                       "total": total,
                       "correct": correct,
@@ -312,14 +312,14 @@ jobs:
                       "elapsed_seconds": elapsed,
                       "scenarios_per_second": total / elapsed if elapsed > 0 else 0
                   }
-                  
+
                   results["scenarios"] = batch_result.get("results", [])
-              
+
               # Save results
               output_file = f"results/he300-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
               with open(output_file, "w") as f:
                   json.dump(results, f, indent=2)
-              
+
               print(f"\n=== HE-300 Benchmark Results ===")
               print(f"Model: {MODEL}")
               print(f"Scenarios: {results['summary']['total']}")
@@ -328,18 +328,18 @@ jobs:
               print(f"Time: {elapsed:.2f}s")
               print(f"Throughput: {results['summary']['scenarios_per_second']:.2f} scenarios/sec")
               print(f"Results saved to: {output_file}")
-              
+
               return results
-          
+
           asyncio.run(run_benchmark())
           BENCHMARK_SCRIPT
-          
+
       - name: Generate benchmark report
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Benchmark Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Parse latest results
           LATEST=$(ls -t results/*.json | head -1)
           if [ -f "$LATEST" ]; then
@@ -357,14 +357,14 @@ jobs:
           print(f"| Throughput | {s.get('scenarios_per_second', 0):.2f} scenarios/sec |")
           REPORT_SCRIPT
           fi >> $GITHUB_STEP_SUMMARY
-          
+
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
           name: he300-results-${{ github.run_number }}
           path: results/
           retention-days: 90
-          
+
       - name: Cleanup
         if: always()
         run: |
@@ -378,50 +378,50 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-eee-api, test-cirisnode]
     if: github.event_name == 'push'
-    
+
     steps:
       - name: Checkout integration repo
         uses: actions/checkout@v4
         with:
           repository: 'rng-ops/he300-integration'
-          
+
       - name: Checkout repos
         run: |
           git clone --depth 1 --branch ${{ env.CIRISNODE_BRANCH }} https://github.com/${{ env.CIRISNODE_REPO }}.git submodules/cirisnode
           git clone --depth 1 --branch ${{ env.EEE_BRANCH }} https://github.com/${{ env.EEE_REPO }}.git submodules/ethicsengine
-          
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          
+
       - name: Quick validation
         run: |
           echo "## 🔥 Smoke Test" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          
+
           # Check files exist
           if [ -f "submodules/ethicsengine/api/routers/he300.py" ]; then
             echo "| EEE HE-300 Router | ✅ |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| EEE HE-300 Router | ❌ |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [ -f "submodules/cirisnode/cirisnode/utils/eee_client.py" ]; then
             echo "| CIRISNode EEE Client | ✅ |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| CIRISNode EEE Client | ❌ |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [ -f "submodules/ethicsengine/data/pipelines/he300/manifest.json" ]; then
             SCENARIO_COUNT=$(python3 -c "import json; m=json.load(open('submodules/ethicsengine/data/pipelines/he300/manifest.json')); print(m.get('total_scenarios', len(m.get('scenarios', []))))" 2>/dev/null || echo "?")
             echo "| HE-300 Scenarios | ✅ ($SCENARIO_COUNT) |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| HE-300 Scenarios | ⚠️ Not found |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
       - name: Summary
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY

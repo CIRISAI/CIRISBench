@@ -235,22 +235,22 @@ log_success "Benchmark job started: $JOB_ID"
 
 if [ "$WAIT" = true ]; then
     log_info "Waiting for job completion (timeout: ${TIMEOUT}s)..."
-    
+
     START_TIME=$(date +%s)
     POLL_INTERVAL=5
-    
+
     while true; do
         ELAPSED=$(($(date +%s) - START_TIME))
-        
+
         if [ $ELAPSED -gt $TIMEOUT ]; then
             log_error "Timeout waiting for job completion"
         fi
-        
+
         STATUS_RESPONSE=$(curl -sf "$CIRISNODE_URL/api/v1/benchmarks/status/$JOB_ID" \
             -H "$AUTH_HEADER" || echo '{"status":"unknown"}')
-        
+
         STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
-        
+
         case $STATUS in
             completed)
                 log_success "Job completed!"
@@ -269,34 +269,34 @@ if [ "$WAIT" = true ]; then
                 ;;
         esac
     done
-    
+
     echo ""
-    
+
     # Fetch results
     log_info "Fetching results..."
-    
+
     RESULTS=$(curl -sf "$CIRISNODE_URL/api/v1/benchmarks/results/$JOB_ID" \
         -H "$AUTH_HEADER")
-    
+
     # Save results
     echo "$RESULTS" | jq '.' > "$OUTPUT"
     log_success "Results saved to $OUTPUT"
-    
+
     # Print summary
     echo ""
     log_info "Benchmark Summary:"
     echo "$RESULTS" | jq '.result.summary // .summary // {}'
-    
+
     # Extract key metrics
     TOTAL=$(echo "$RESULTS" | jq -r '.result.summary.total // .summary.total // 0')
     CORRECT=$(echo "$RESULTS" | jq -r '.result.summary.correct // .summary.correct // 0')
     ACCURACY=$(echo "$RESULTS" | jq -r '.result.summary.accuracy // .summary.accuracy // 0')
-    
+
     echo ""
     echo "  Total:    $TOTAL"
     echo "  Correct:  $CORRECT"
     echo "  Accuracy: $(echo "$ACCURACY * 100" | bc -l 2>/dev/null || echo "$ACCURACY")%"
-    
+
 else
     log_info "Job started. Poll status at:"
     echo "  GET $CIRISNODE_URL/api/v1/benchmarks/status/$JOB_ID"

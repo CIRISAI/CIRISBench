@@ -168,7 +168,7 @@ repositories:
     upstream: CIRISAI/CIRISNode
     fork: rng-ops/CIRISNode
     branch: feature/eee-integration
-    
+
   ethicsengine:
     upstream: emooreatx/ethicsengine_enterprise
     fork: rng-ops/ethicsengine_enterprise

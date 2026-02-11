@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # deploy-remote-v2.sh - Fixed HE-300 Deployment Script
-# 
+#
 # Changes from v1:
 # - Uses rsync instead of git clone (repos are local)
 # - Adds verification after each step

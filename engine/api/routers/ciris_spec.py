@@ -55,25 +55,25 @@ async def get_ciris_spec(
 ):
     """
     Retrieve the CIRIS trace specification.
-    
+
     Per FSD FR-1: Fetches the CIRIS trace schema from https://ciris.ai/explore-a-trace/
     Per FSD FR-2: Records metadata (schema version, retrieval timestamp)
     Per FSD FR-3: Fails with clear error if spec cannot be retrieved
-    
+
     Args:
         force_refresh: If True, bypass cache and fetch fresh from ciris.ai
-        
+
     Returns:
         Complete CIRIS trace specification
     """
     result = await fetch_ciris_spec(force_refresh=force_refresh)
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec from {CIRIS_TRACE_URL}: {result.error}"
         )
-    
+
     return result.spec
 
 
@@ -81,17 +81,17 @@ async def get_ciris_spec(
 async def get_ciris_spec_metadata():
     """
     Get CIRIS spec metadata without the full component definitions.
-    
+
     Lightweight endpoint for checking spec version and cache status.
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     spec = result.spec
     return {
         "spec_version": spec.spec_version,
@@ -114,20 +114,20 @@ async def get_ciris_components(
 ):
     """
     Get the CIRIS trace components that must be validated.
-    
-    Per FSD FR-4: These components define the trace structure 
+
+    Per FSD FR-4: These components define the trace structure
     (Observation, Context, Analysis, Conscience checks, etc.)
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     components = result.spec.trace_components
-    
+
     if component_id:
         components = [c for c in components if c.component_id == component_id]
         if not components:
@@ -135,7 +135,7 @@ async def get_ciris_components(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Component '{component_id}' not found in CIRIS spec"
             )
-    
+
     return components
 
 
@@ -143,18 +143,18 @@ async def get_ciris_components(
 async def get_ciris_audit_requirements():
     """
     Get the CIRIS audit metadata requirements.
-    
+
     Per FSD FR-5: Includes Ed25519 signature requirements and hash chain specs.
     Per FSD FR-9: Cryptographic audit metadata requirements.
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     return result.spec.audit_metadata
 
 
@@ -162,17 +162,17 @@ async def get_ciris_audit_requirements():
 async def get_required_fields():
     """
     Get the list of required fields for a valid CIRIS trace.
-    
+
     Per FSD FR-11: Outputs must include these structured fields.
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     return {
         "required_fields": result.spec.required_fields,
         "spec_version": result.spec.spec_version,
@@ -183,17 +183,17 @@ async def get_required_fields():
 async def get_ciris_spec_hash():
     """
     Get the current CIRIS spec hash for integrity verification.
-    
+
     Clients can use this to verify their cached spec matches.
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     return {
         "spec_version": result.spec.spec_version,
         "spec_hash": result.spec.spec_hash,
@@ -206,21 +206,21 @@ async def get_ciris_spec_hash():
 async def refresh_ciris_spec():
     """
     Force refresh the CIRIS spec from ciris.ai.
-    
+
     Clears all caches and fetches fresh from the source.
     """
     # Clear caches
     clear_ciris_spec_cache()
-    
+
     # Fetch fresh
     result = await fetch_ciris_spec(force_refresh=True)
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to refresh CIRIS spec: {result.error}"
         )
-    
+
     return {
         "status": "refreshed",
         "spec_version": result.spec.spec_version,
@@ -236,7 +236,7 @@ async def get_cache_status():
     Get the current CIRIS spec cache status.
     """
     cached_spec = get_cached_ciris_spec()
-    
+
     if cached_spec:
         return {
             "cached": True,
@@ -256,7 +256,7 @@ async def get_cache_status():
 async def clear_cache():
     """
     Clear the CIRIS spec cache.
-    
+
     Next request will fetch fresh from ciris.ai.
     """
     clear_ciris_spec_cache()
@@ -267,12 +267,12 @@ async def clear_cache():
 async def ciris_health():
     """
     Health check for the CIRIS spec subsystem.
-    
+
     Verifies that the CIRIS spec can be retrieved.
     """
     try:
         result = await fetch_ciris_spec()
-        
+
         return {
             "status": "healthy" if result.success else "degraded",
             "spec_available": result.success,
@@ -294,27 +294,27 @@ async def ciris_health():
 async def get_validation_schema():
     """
     Get the validation schema derived from the CIRIS spec.
-    
+
     Returns a JSON Schema that can be used to validate traces.
     """
     result = await fetch_ciris_spec()
-    
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec: {result.error}"
         )
-    
+
     spec = result.spec
-    
+
     # Build JSON Schema from components
     properties = {}
     required = list(spec.required_fields)
-    
+
     for component in spec.trace_components:
         component_properties = {}
         component_required = []
-        
+
         for field in component.fields:
             field_type = field.get("type", "string")
             json_type = {
@@ -326,25 +326,25 @@ async def get_validation_schema():
                 "object": "object",
                 "datetime": "string",
             }.get(field_type, "string")
-            
+
             component_properties[field["name"]] = {
                 "type": json_type,
                 "description": field.get("description", ""),
             }
-            
+
             if field.get("required", False):
                 component_required.append(field["name"])
-        
+
         properties[component.component_id] = {
             "type": "object",
             "description": component.description,
             "properties": component_properties,
             "required": component_required,
         }
-        
+
         if component.required:
             required.append(component.component_id)
-    
+
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "CIRIS Trace Validation Schema",

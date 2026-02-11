@@ -162,16 +162,16 @@ if [ ! -d "$CIRISNODE_DIR/.git" ]; then
     log_info "Cloning CIRISNode from $CIRISNODE_URL"
     git clone --branch "$CIRISNODE_BRANCH" "$CIRISNODE_URL" "$CIRISNODE_DIR" || \
         git clone "$CIRISNODE_URL" "$CIRISNODE_DIR"
-    
+
     cd "$CIRISNODE_DIR"
     git checkout "$CIRISNODE_BRANCH" 2>/dev/null || git checkout -b "$CIRISNODE_BRANCH"
-    
+
     # Add upstream remote if using fork
     if [ "$USE_UPSTREAM" = false ]; then
         git remote add upstream "$CIRISNODE_UPSTREAM" 2>/dev/null || true
         git fetch upstream
     fi
-    
+
     cd "$ROOT_DIR"
     log_success "Cloned CIRISNode"
 fi
@@ -201,16 +201,16 @@ if [ ! -d "$EEE_DIR/.git" ]; then
     log_info "Cloning EthicsEngine from $EEE_URL"
     git clone --branch "$EEE_BRANCH" "$EEE_URL" "$EEE_DIR" || \
         git clone "$EEE_URL" "$EEE_DIR"
-    
+
     cd "$EEE_DIR"
     git checkout "$EEE_BRANCH" 2>/dev/null || git checkout -b "$EEE_BRANCH"
-    
+
     # Add upstream remote if using fork
     if [ "$USE_UPSTREAM" = false ]; then
         git remote add upstream "$EEE_UPSTREAM" 2>/dev/null || true
         git fetch upstream
     fi
-    
+
     cd "$ROOT_DIR"
     log_success "Cloned EthicsEngine"
 fi

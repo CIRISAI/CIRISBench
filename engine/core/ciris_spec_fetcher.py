@@ -59,7 +59,7 @@ class CIRISAuditMetadata(BaseModel):
 class CIRISTraceSpec(BaseModel):
     """
     The CIRIS trace specification as retrieved from ciris.ai.
-    
+
     This is the authoritative schema for HE-300 compliance validation.
     """
     # Metadata
@@ -67,25 +67,25 @@ class CIRISTraceSpec(BaseModel):
     spec_hash: str = Field(..., description="SHA-256 hash of the spec content")
     retrieval_timestamp: str = Field(..., description="When this spec was retrieved")
     source_url: str = Field(..., description="URL from which spec was retrieved")
-    
+
     # Trace structure
     trace_components: List[CIRISTraceComponent] = Field(
         default_factory=list,
         description="Components that make up a valid CIRIS trace"
     )
-    
+
     # Audit requirements
     audit_metadata: CIRISAuditMetadata = Field(
         default_factory=CIRISAuditMetadata,
         description="Audit and cryptographic requirements"
     )
-    
+
     # Validation requirements
     required_fields: List[str] = Field(
         default_factory=list,
         description="Top-level fields required in every trace"
     )
-    
+
     # Raw spec data for forward compatibility
     raw_spec: Optional[Dict[str, Any]] = Field(
         None,
@@ -110,7 +110,7 @@ _ciris_spec_cache_time: Optional[datetime] = None
 def _get_default_ciris_trace_components() -> List[CIRISTraceComponent]:
     """
     Returns the expected CIRIS trace components based on the CIRIS architecture.
-    
+
     These are derived from the CIRIS reasoning structure:
     - Observation: What was observed/input
     - Context: Relevant context and history
@@ -217,11 +217,11 @@ def _get_default_ciris_trace_components() -> List[CIRISTraceComponent]:
 def _build_fallback_spec() -> CIRISTraceSpec:
     """
     Build a fallback spec based on known CIRIS structure.
-    
+
     Used when network fetch fails and ALLOW_FALLBACK is True.
     """
     components = _get_default_ciris_trace_components()
-    
+
     # Calculate hash of the components
     components_json = json.dumps(
         [c.model_dump() for c in components],
@@ -229,7 +229,7 @@ def _build_fallback_spec() -> CIRISTraceSpec:
         default=str
     )
     spec_hash = hashlib.sha256(components_json.encode()).hexdigest()
-    
+
     return CIRISTraceSpec(
         spec_version="1.0.0-fallback",
         spec_hash=f"sha256:{spec_hash}",
@@ -254,7 +254,7 @@ def _build_fallback_spec() -> CIRISTraceSpec:
 async def _fetch_ciris_spec_from_api() -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Fetch the CIRIS trace spec from the API endpoint.
-    
+
     Returns (spec_data, error_message)
     """
     try:
@@ -267,17 +267,17 @@ async def _fetch_ciris_spec_from_api() -> Tuple[Optional[Dict[str, Any]], Option
                     "User-Agent": "EthicsEngine-HE300/1.0",
                 },
             )
-            
+
             if response.status_code == 200:
                 try:
                     data = response.json()
                     return data, None
                 except json.JSONDecodeError as e:
                     return None, f"Invalid JSON from CIRIS API: {e}"
-            
+
             # If API fails, try scraping the explore page
             logger.info(f"API returned {response.status_code}, trying explore page...")
-            
+
             response = await client.get(
                 CIRIS_TRACE_URL,
                 headers={
@@ -285,14 +285,14 @@ async def _fetch_ciris_spec_from_api() -> Tuple[Optional[Dict[str, Any]], Option
                     "User-Agent": "EthicsEngine-HE300/1.0",
                 },
             )
-            
+
             if response.status_code == 200:
                 # Try to extract JSON from the page
                 content = response.text
-                
+
                 # Look for embedded JSON (common patterns)
                 import re
-                
+
                 # Pattern 1: JSON in script tag
                 json_match = re.search(
                     r'<script[^>]*type="application/json"[^>]*>(.*?)</script>',
@@ -305,7 +305,7 @@ async def _fetch_ciris_spec_from_api() -> Tuple[Optional[Dict[str, Any]], Option
                         return data, None
                     except json.JSONDecodeError:
                         pass
-                
+
                 # Pattern 2: JSON in data attribute
                 json_match = re.search(
                     r'data-trace-schema=["\'](\{.*?\})["\']',
@@ -318,14 +318,14 @@ async def _fetch_ciris_spec_from_api() -> Tuple[Optional[Dict[str, Any]], Option
                         return data, None
                     except json.JSONDecodeError:
                         pass
-                
+
                 # Pattern 3: Return structured data based on page analysis
                 # (In production, this would parse the actual page structure)
                 logger.warning("Could not extract JSON from explore page, using structure analysis")
                 return None, "Could not extract spec from explore page"
-            
+
             return None, f"CIRIS endpoint returned status {response.status_code}"
-            
+
     except httpx.TimeoutException:
         return None, "Timeout connecting to CIRIS API"
     except httpx.ConnectError as e:
@@ -356,7 +356,7 @@ def _parse_ciris_spec_data(data: Dict[str, Any]) -> CIRISTraceSpec:
     else:
         # Use default components
         components = _get_default_ciris_trace_components()
-    
+
     # Extract audit metadata
     audit_data = data.get("audit_metadata", data.get("audit", {}))
     audit_metadata = CIRISAuditMetadata(
@@ -366,11 +366,11 @@ def _parse_ciris_spec_data(data: Dict[str, Any]) -> CIRISTraceSpec:
         requires_signature=audit_data.get("requires_signature", True),
         hash_algorithm=audit_data.get("hash_algorithm", "SHA-256"),
     )
-    
+
     # Calculate hash
     content_for_hash = json.dumps(data, sort_keys=True, default=str)
     spec_hash = hashlib.sha256(content_for_hash.encode()).hexdigest()
-    
+
     return CIRISTraceSpec(
         spec_version=data.get("version", data.get("spec_version", "1.0.0")),
         spec_hash=f"sha256:{spec_hash}",
@@ -379,7 +379,7 @@ def _parse_ciris_spec_data(data: Dict[str, Any]) -> CIRISTraceSpec:
         trace_components=components,
         audit_metadata=audit_metadata,
         required_fields=data.get("required_fields", [
-            "trace_id", "spec_version", "overall_status", 
+            "trace_id", "spec_version", "overall_status",
             "audit_metadata", "component_results"
         ]),
         raw_spec=data,
@@ -389,23 +389,23 @@ def _parse_ciris_spec_data(data: Dict[str, Any]) -> CIRISTraceSpec:
 def _load_cached_spec() -> Optional[CIRISTraceSpec]:
     """Load spec from disk cache if available and not expired."""
     cache_file = CIRIS_CACHE_DIR / "ciris_spec_latest.json"
-    
+
     if not cache_file.exists():
         return None
-    
+
     try:
         cache_data = json.loads(cache_file.read_text())
         cached_at = datetime.fromisoformat(cache_data.get("cached_at", ""))
-        
+
         # Check if cache is expired
         age_seconds = (datetime.now(timezone.utc) - cached_at).total_seconds()
         if age_seconds > SPEC_CACHE_TTL_SECONDS:
             logger.info(f"CIRIS spec cache expired (age: {age_seconds:.0f}s)")
             return None
-        
+
         spec_data = cache_data.get("spec", {})
         return CIRISTraceSpec(**spec_data)
-        
+
     except Exception as e:
         logger.warning(f"Failed to load CIRIS spec from cache: {e}")
         return None
@@ -414,7 +414,7 @@ def _load_cached_spec() -> Optional[CIRISTraceSpec]:
 def _save_spec_to_cache(spec: CIRISTraceSpec) -> None:
     """Save spec to disk cache."""
     cache_file = CIRIS_CACHE_DIR / "ciris_spec_latest.json"
-    
+
     try:
         cache_data = {
             "cached_at": datetime.now(timezone.utc).isoformat(),
@@ -429,23 +429,23 @@ def _save_spec_to_cache(spec: CIRISTraceSpec) -> None:
 async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
     """
     Fetch the CIRIS trace spec from ciris.ai.
-    
+
     Per FSD:
     - FR-1: Fetches from https://ciris.ai/explore-a-trace/ or API
     - FR-2: Records metadata (version, timestamp, hash)
     - FR-3: Fails with clear error if spec cannot be retrieved
-    
+
     Args:
         force_refresh: If True, bypass cache and fetch fresh
-        
+
     Returns:
         CIRISSpecFetchResult with success status and spec or error
     """
     global _ciris_spec_cache, _ciris_spec_cache_time
-    
+
     import time
     start_time = time.time()
-    
+
     # Check in-memory cache first
     if not force_refresh and _ciris_spec_cache is not None:
         cache_age = (datetime.now(timezone.utc) - _ciris_spec_cache_time).total_seconds()
@@ -456,7 +456,7 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
                 from_cache=True,
                 fetch_duration_ms=(time.time() - start_time) * 1000,
             )
-    
+
     # Check disk cache
     if not force_refresh:
         cached_spec = _load_cached_spec()
@@ -469,11 +469,11 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
                 from_cache=True,
                 fetch_duration_ms=(time.time() - start_time) * 1000,
             )
-    
+
     # Fetch from network
     logger.info(f"Fetching CIRIS spec from {CIRIS_API_URL}")
     spec_data, error = await _fetch_ciris_spec_from_api()
-    
+
     if spec_data:
         # Parse and cache
         try:
@@ -481,7 +481,7 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
             _ciris_spec_cache = spec
             _ciris_spec_cache_time = datetime.now(timezone.utc)
             _save_spec_to_cache(spec)
-            
+
             logger.info(f"Successfully fetched CIRIS spec v{spec.spec_version}")
             return CIRISSpecFetchResult(
                 success=True,
@@ -491,17 +491,17 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
             )
         except Exception as e:
             error = f"Failed to parse CIRIS spec: {e}"
-    
+
     # Network fetch failed
     logger.error(f"Failed to fetch CIRIS spec: {error}")
-    
+
     # Check if fallback is allowed
     if ALLOW_FALLBACK:
         logger.warning("Using fallback CIRIS spec (network fetch failed)")
         fallback_spec = _build_fallback_spec()
         _ciris_spec_cache = fallback_spec
         _ciris_spec_cache_time = datetime.now(timezone.utc)
-        
+
         return CIRISSpecFetchResult(
             success=True,
             spec=fallback_spec,
@@ -509,7 +509,7 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
             error=f"Used fallback spec due to: {error}",
             fetch_duration_ms=(time.time() - start_time) * 1000,
         )
-    
+
     # Per FR-3: Fail with clear error
     return CIRISSpecFetchResult(
         success=False,
@@ -522,26 +522,26 @@ async def fetch_ciris_spec(force_refresh: bool = False) -> CIRISSpecFetchResult:
 def get_ciris_spec_sync(force_refresh: bool = False) -> CIRISTraceSpec:
     """
     Synchronous wrapper for fetching CIRIS spec.
-    
+
     Raises HTTPException if spec cannot be retrieved (per FR-3).
     """
     import asyncio
-    
+
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    
+
     result = loop.run_until_complete(fetch_ciris_spec(force_refresh))
-    
+
     if not result.success:
         from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Failed to retrieve CIRIS spec (FR-3): {result.error}"
         )
-    
+
     return result.spec
 
 
@@ -555,7 +555,7 @@ def clear_ciris_spec_cache() -> None:
     global _ciris_spec_cache, _ciris_spec_cache_time
     _ciris_spec_cache = None
     _ciris_spec_cache_time = None
-    
+
     # Also clear disk cache
     cache_file = CIRIS_CACHE_DIR / "ciris_spec_latest.json"
     if cache_file.exists():

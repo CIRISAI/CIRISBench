@@ -89,48 +89,48 @@ sync_repo() {
     local dir="$2"
     local upstream="$3"
     local branch="$4"
-    
+
     log_info "Syncing $name..."
-    
+
     if [ ! -d "$dir/.git" ]; then
         log_warn "$name not found at $dir"
         return 1
     fi
-    
+
     cd "$dir"
-    
+
     # Ensure upstream remote exists
     if ! git remote get-url upstream >/dev/null 2>&1; then
         log_info "Adding upstream remote: $upstream"
         git remote add upstream "$upstream"
     fi
-    
+
     # Fetch upstream
     log_info "Fetching upstream..."
     git fetch upstream
-    
+
     # Get current branch
     local current_branch=$(git branch --show-current)
     log_info "Current branch: $current_branch"
-    
+
     # Check how far behind we are
     local behind=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
     local ahead=$(git rev-list --count upstream/main..HEAD 2>/dev/null || echo "0")
-    
+
     log_info "Status: $behind commits behind, $ahead commits ahead of upstream/main"
-    
+
     if [ "$behind" = "0" ]; then
         log_success "$name is up to date"
         cd "$ROOT_DIR"
         return 0
     fi
-    
+
     if [ "$DRY_RUN" = true ]; then
         log_info "[DRY RUN] Would sync $behind commits from upstream"
         cd "$ROOT_DIR"
         return 0
     fi
-    
+
     # Perform sync based on strategy
     case $STRATEGY in
         rebase)
@@ -158,13 +158,13 @@ sync_repo() {
             log_error "Unknown strategy: $STRATEGY"
             ;;
     esac
-    
+
     log_success "$name synced successfully"
-    
+
     # Push to fork
     log_info "Pushing to origin..."
     git push origin "$current_branch" --force-with-lease || log_warn "Push failed (may need manual push)"
-    
+
     cd "$ROOT_DIR"
     return 0
 }

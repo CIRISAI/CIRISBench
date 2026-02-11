@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const startTime = Date.now();
-  
+
   const checks = {
     database: { status: "unknown" as "ok" | "error" | "unknown", latency: 0 },
     version: process.env.npm_package_version || "1.0.0",

@@ -26,4 +26,3 @@ After modifying code, run the test suite from the repository root:
 python -m pytest -q
 ```
 All tests should pass before committing changes.
-
