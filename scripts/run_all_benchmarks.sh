@@ -4,7 +4,7 @@
 
 set -e
 
-OPENROUTER_API_KEY="***REMOVED***"
+OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-$(cat ~/.openrouter_key 2>/dev/null)}"
 BENCH_URL="http://localhost:8180"
 PURPLE_PORT=9000
 
