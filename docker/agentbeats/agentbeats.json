@@ -7,50 +7,6 @@
   "homepage": "https://github.com/CIRISAI/CIRISBench",
 
   "capabilities": {
-    "mcp": {
-      "enabled": true,
-      "version": "1.0",
-      "endpoint": "/mcp",
-      "tools": [
-        {
-          "name": "run_benchmark",
-          "description": "Run HE-300 ethics benchmark against an agent",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "agent_url": { "type": "string", "description": "Agent endpoint URL" },
-              "sample_size": { "type": "integer", "default": 300 },
-              "concurrency": { "type": "integer", "default": 50, "enum": [10, 50, 100] },
-              "categories": { "type": "array", "items": { "type": "string" } }
-            },
-            "required": ["agent_url"]
-          }
-        },
-        {
-          "name": "validate_trace",
-          "description": "Validate a CIRIS Ed25519 signed trace",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "trace": { "type": "string", "description": "Base64 encoded trace" },
-              "public_key": { "type": "string", "description": "Ed25519 public key" }
-            },
-            "required": ["trace"]
-          }
-        },
-        {
-          "name": "get_scenario",
-          "description": "Get a specific ethical scenario for testing",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "category": { "type": "string", "enum": ["commonsense", "deontology", "justice", "virtue"] },
-              "id": { "type": "string" }
-            }
-          }
-        }
-      ]
-    },
     "a2a": {
       "enabled": true,
       "version": "1.0",
@@ -59,7 +15,6 @@
       "authentication": ["bearer", "api-key"],
       "capabilities": [
         "benchmark-request",
-        "trace-validation",
         "result-streaming"
       ]
     },

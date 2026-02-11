@@ -1,15 +1,15 @@
 # =============================================================================
-# CIRISBench Unified Image for AgentBeats
+# CIRISBench EthicsEngine Image for AgentBeats
 # =============================================================================
 #
-# Single container with CIRISNode + EthicsEngine pre-configured for AgentBeats.
-# Supports MCP (Model Context Protocol) and A2A (Agent-to-Agent) connections.
+# Single container with EthicsEngine pre-configured for AgentBeats.
+# Supports A2A (Agent-to-Agent) protocol for benchmark evaluation.
 #
 # Build:
 #   docker build -t cirisbench:agentbeats -f docker/agentbeats/Dockerfile .
 #
 # Run:
-#   docker run -p 8000:8000 -p 8080:8080 cirisbench:agentbeats
+#   docker run -p 8080:8080 cirisbench:agentbeats
 #
 # =============================================================================
 
@@ -22,16 +22,16 @@ ARG GIT_HASH=unknown
 
 # Labels for AgentBeats discovery
 LABEL org.opencontainers.image.title="CIRISBench"
-LABEL org.opencontainers.image.description="CIRIS AI Agent Benchmarking - MCP & A2A Ready"
+LABEL org.opencontainers.image.description="CIRIS AI Agent Ethics Benchmarking"
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL org.opencontainers.image.revision="${GIT_HASH}"
 LABEL org.opencontainers.image.vendor="CIRIS AI"
 LABEL org.opencontainers.image.source="https://github.com/CIRISAI/CIRISBench"
 # AgentBeats specific labels
-LABEL ai.agentbeats.protocols="mcp,a2a"
+LABEL ai.agentbeats.protocols="a2a"
 LABEL ai.agentbeats.type="benchmark"
-LABEL ai.agentbeats.capabilities="ethics-evaluation,agent-testing,trace-validation"
+LABEL ai.agentbeats.capabilities="ethics-evaluation,agent-testing"
 
 # Environment
 ENV PYTHONUNBUFFERED=1
@@ -61,9 +61,7 @@ RUN pip install --prefix=/install .
 COPY engine/requirements.txt ./engine-requirements.txt
 RUN pip install --prefix=/install -r engine-requirements.txt
 
-# Install CIRISNode dependencies
-COPY CIRISNode/requirements.txt ./cirisnode-requirements.txt
-RUN pip install --prefix=/install -r cirisnode-requirements.txt
+# CIRISNode removed - no external dependencies needed
 
 # =============================================================================
 # Runtime stage
@@ -90,7 +88,6 @@ WORKDIR /app
 # Copy application code
 COPY --chown=ciris:ciris cirisbench/ ./cirisbench/
 COPY --chown=ciris:ciris engine/ ./engine/
-COPY --chown=ciris:ciris CIRISNode/cirisnode/ ./cirisnode/
 
 # Copy AgentBeats configuration
 COPY --chown=ciris:ciris docker/agentbeats/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -103,29 +100,22 @@ RUN chmod +x /entrypoint.sh
 ENV PYTHONPATH=/app
 ENV LOG_LEVEL=info
 
-# CIRISNode settings
-ENV CIRISNODE_HOST=0.0.0.0
-ENV CIRISNODE_PORT=8000
-ENV MCP_ENABLED=true
-ENV A2A_ENABLED=true
-
 # EthicsEngine settings
 ENV EEE_HOST=0.0.0.0
 ENV EEE_PORT=8080
 ENV HE300_ENABLED=true
 ENV DATA_DIR=engine/data
 
-# AgentBeats mode - runs both services
+# AgentBeats mode
 ENV AGENTBEATS_MODE=true
 
 # Expose ports
-# 8000 - CIRISNode API (MCP/A2A)
 # 8080 - EthicsEngine API (Benchmarks)
-EXPOSE 8000 8080
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health && curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Volumes for persistence
 VOLUME ["/data", "/config"]

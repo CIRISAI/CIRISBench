@@ -9,10 +9,7 @@ echo "=============================================="
 echo "CIRISBench for AgentBeats"
 echo "=============================================="
 echo "Mode: ${AGENTBEATS_MODE:-standalone}"
-echo "CIRISNode: http://${CIRISNODE_HOST:-0.0.0.0}:${CIRISNODE_PORT:-8000}"
 echo "EthicsEngine: http://${EEE_HOST:-0.0.0.0}:${EEE_PORT:-8080}"
-echo "MCP Enabled: ${MCP_ENABLED:-true}"
-echo "A2A Enabled: ${A2A_ENABLED:-true}"
 echo "=============================================="
 
 # Create data directories if they don't exist
@@ -54,8 +51,6 @@ fi
 
 # Run database migrations
 echo "Running database migrations..."
-# CIRISNode SQL migrations (auto-migrator with schema_migrations tracking)
-cd /app && python -m cirisnode.db.migrator || echo "CIRISNode migrations: skipped or failed (non-fatal)"
 # Engine alembic migrations (if alembic is available and DB is reachable)
 if [ -f /app/engine/alembic.ini ] || [ -f /app/alembic.ini ]; then
     cd /app && python -m alembic upgrade head 2>/dev/null || echo "Engine alembic migrations: skipped or failed (non-fatal)"

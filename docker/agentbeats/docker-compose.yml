@@ -32,17 +32,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io/cirisai}/cirisbench:${IMAGE_TAG:-agentbeats}
     container_name: cirisbench
     ports:
-      - "${CIRISNODE_PORT:-8000}:8000"   # CIRISNode API (MCP/A2A)
       - "${EEE_PORT:-8080}:8080"         # EthicsEngine API
     environment:
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-info}
-
-      # CIRISNode
-      - CIRISNODE_HOST=0.0.0.0
-      - CIRISNODE_PORT=8000
-      - MCP_ENABLED=${MCP_ENABLED:-true}
-      - A2A_ENABLED=${A2A_ENABLED:-true}
 
       # EthicsEngine
       - EEE_HOST=0.0.0.0
@@ -65,7 +58,7 @@ services:
       - cirisbench_data:/data
       - cirisbench_config:/config
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -75,23 +68,6 @@ services:
       agentbeats:
         aliases:
           - api
-
-  # ===========================================================================
-  # CIRISBench UI (Next.js)
-  # ===========================================================================
-  ui:
-    build:
-      context: ../../CIRISNode/ui
-      dockerfile: ../../docker/agentbeats/Dockerfile.ui
-    image: ${DOCKER_REGISTRY:-ghcr.io/cirisai}/cirisbench-ui:${IMAGE_TAG:-agentbeats}
-    container_name: cirisbench-ui
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-    restart: unless-stopped
-    networks:
-      - agentbeats
 
   # ===========================================================================
   # Mock Purple Agent (Baseline for testing)
