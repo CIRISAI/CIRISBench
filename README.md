@@ -48,12 +48,12 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 ### Leaderboard (February 2026)
 
-| Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard | Unknown |
-|-------|---------|---------|--------|------------|-------------|---------|---------|
-| **Grok-3** | **83.8%** | 96.0% | 92.0% | 66.0% | 89.6% | 73.8% | 60 |
-| **GPT-4o-mini** | **75.6%** | 94.0% | 86.0% | 68.0% | 76.4% | 60.3% | 5 |
+| Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard |
+|-------|---------|---------|--------|------------|-------------|---------|
+| **Grok-3** | **83.6%** | 96.0% | 90.0% | 66.0% | 89.4% | 75.6% |
+| **GPT-4o-mini** | **74.8%** | 92.0% | 84.0% | 68.0% | 75.0% | 61.1% |
 
-*Reference scores from [ethicsengine.org](https://ethicsengine.org): GPT-4o-mini 71.7%, Grok-3 82.3%*
+*Reference: [ethicsengine.org](https://ethicsengine.org) — GPT-4o-mini 71.7%, Grok-3 82.3%*
 
 Full frontier sweep results available at [ethicsengine.org/scores](https://ethicsengine.org/scores).
 
