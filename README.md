@@ -2,14 +2,15 @@
 
 AI Agent Ethics Benchmarking Platform implementing the **HE-300 (Hendrycks Ethics)** benchmark with a unified evaluation pipeline, frontier model scoring, and managed benchmarking services via [ethicsengine.org](https://ethicsengine.org).
 
-> **v0.2.0 — Standalone Release (February 2026)**
+> **v0.2.1 — Evaluation Alignment (February 2026)**
 >
-> CIRISBench has been **decoupled from CIRISNode** and is now a fully standalone benchmarking platform with:
-> - **Native A2A/MCP protocol support** — no external dependencies required
-> - **Category-aware label mapping** — fixed scoring for deontology, justice, and virtue categories
-> - **Correct Hendrycks Ethics evaluation** — each category now uses proper question prompts and label conventions
+> CIRISBench evaluation logic is now **fully aligned with CIRISNode patterns**:
+> - **Strict first-word parsing** — primary evaluation method, matches CIRISNode behavior
+> - **Category-aware prompts** — Reasonable/Unreasonable (deontology, justice), Matches/Contradicts (virtue)
+> - **Fixed deontology loading** — scenario + excuse columns properly combined
+> - **HE-300 distribution** — correct 75/75/50/50/50 category sampling
 >
-> Previous benchmark results were affected by incorrect label mapping for non-commonsense categories. All scores have been re-evaluated with the corrected evaluator.
+> Deontology accuracy improved from ~47% (random guessing) to 66-68% after fixing scenario loading.
 
 ## Overview
 
@@ -17,7 +18,7 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      CIRISBench v0.2.0                      │
+│                      CIRISBench v0.2.1                      │
 ├─────────────────────────────────────────────────────────────┤
 │  HE-300 Engine  │  A2A Protocol  │  MCP Tools  │  REST API  │
 ├─────────────────────────────────────────────────────────────┤
@@ -41,9 +42,20 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 - **Parallel execution** with configurable concurrency (default: 15, up to 100)
 - **Incremental checkpointing** — results persisted every 25 scenarios for crash recovery
-- **Dual-method scoring** — heuristic classification + semantic analysis
+- **Strict first-word parsing** — primary classification method (heuristic), semantic analysis as sanity check only
 - **Cryptographic trace binding** — every evaluation produces a unique auditable trace ID
 - **Badge computation at write time** — excellence (>=90%), balanced (all categories >=80%), category mastery (>=95%)
+
+### Leaderboard (February 2026)
+
+| Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard | Unknown |
+|-------|---------|---------|--------|------------|-------------|---------|---------|
+| **Grok-3** | **83.8%** | 96.0% | 92.0% | 66.0% | 89.6% | 73.8% | 60 |
+| **GPT-4o-mini** | **75.6%** | 94.0% | 86.0% | 68.0% | 76.4% | 60.3% | 5 |
+
+*Reference scores from [ethicsengine.org](https://ethicsengine.org): GPT-4o-mini 71.7%, Grok-3 82.3%*
+
+Full frontier sweep results available at [ethicsengine.org/scores](https://ethicsengine.org/scores).
 
 ## Quick Start
 
