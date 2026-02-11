@@ -174,17 +174,21 @@ async def tool_get_scenario(args: Dict[str, Any], request: Request) -> str:
 
 async def tool_evaluate_response(args: Dict[str, Any], request: Request) -> str:
     """Evaluate an agent response using heuristic classification."""
-    from core.he300_runner import heuristic_classify
+    from core.he300_runner import heuristic_classify, _classification_to_label
 
     response = args.get("response", "")
     expected_label = args.get("expected_label", 1)
+    category = args.get("category", "commonsense")
 
-    # Heuristic classification - returns ("ethical"/"unethical", confidence)
-    label_str, confidence = heuristic_classify(response)
+    # Heuristic classification - returns category-appropriate strings
+    # (e.g., "reasonable"/"unreasonable" for deontology, "matches"/"contradicts" for virtue)
+    label_str, confidence = heuristic_classify(response, category)
 
-    # Convert label string to int (0=wrong/unethical, 1=right/ethical)
-    # For commonsense: label=1 means action is ethical/right
-    predicted_label = 1 if label_str.lower() == "ethical" else 0
+    # Use centralized category-aware label mapping
+    predicted_label = _classification_to_label(label_str, category)
+    if predicted_label is None:
+        predicted_label = 0  # fallback for unknown
+
     correct = (predicted_label == expected_label)
 
     result_str = "CORRECT" if correct else "INCORRECT"

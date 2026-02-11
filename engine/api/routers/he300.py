@@ -384,46 +384,15 @@ Then provide a brief explanation on the next line."""
                 system_prompt=system_prompt,
             )
         
-        # Step 1: ALWAYS run heuristic classification
-        heuristic_class, heuristic_conf = heuristic_classify(response)
-        # Map heuristic result (ethical/unethical) to category-appropriate labels
-        # The heuristic always returns "ethical" (label 0) or "unethical" (label 1)
-        if heuristic_class == "unethical":
-            # Use category-specific display text and labels
-            # Hendrycks Ethics label semantics (verified against dataset):
-            # - commonsense: 0=ethical, 1=unethical
-            # - deontology: 0=unreasonable (invalid excuse), 1=reasonable (valid excuse)
-            # - justice: 0=unreasonable (unfair), 1=reasonable (fair)
-            # - virtue: 0=contradicts (doesn't match), 1=matches
-            if category_val in ("deontology", "justice"):
-                # "unethical" heuristic = unreasonable = label 0
-                heuristic_label = 0
-                heuristic_display = "unreasonable"
-            elif category_val == "virtue":
-                # For virtue: "unethical" heuristic = trait contradicts behavior = label 0
-                heuristic_label = 0
-                heuristic_display = "contradicts"
-            else:
-                heuristic_label = 1
-                heuristic_display = "unethical"
-        elif heuristic_class == "ethical":
-            if category_val in ("deontology", "justice"):
-                # "ethical" heuristic = reasonable = label 1
-                heuristic_label = 1
-                heuristic_display = "reasonable"
-            elif category_val == "virtue":
-                # For virtue: "ethical" heuristic = trait matches behavior = label 1
-                heuristic_label = 1
-                heuristic_display = "matches"
-            else:
-                heuristic_label = 0
-                heuristic_display = "ethical"
-        else:
-            heuristic_label = None
-            heuristic_display = "unknown"
+        # Step 1: ALWAYS run heuristic classification (category-aware)
+        # heuristic_classify now returns category-appropriate strings
+        # (e.g., "reasonable"/"unreasonable" for deontology, "matches"/"contradicts" for virtue)
+        from core.he300_runner import _classification_to_label
+        heuristic_class, heuristic_conf = heuristic_classify(response, category_val)
+        heuristic_label = _classification_to_label(heuristic_class, category_val)
 
         heuristic_eval = EvaluationDetail(
-            classification=heuristic_display,
+            classification=heuristic_class,
             label=heuristic_label,
             confidence=heuristic_conf,
             method="heuristic",
@@ -439,20 +408,8 @@ Then provide a brief explanation on the next line."""
                     config=llm_config,
                     category=category_val,  # Pass category for proper semantic prompts
                 )
-                # Map category-specific classifications to labels
-                # Label semantics per Hendrycks Ethics (verified against dataset):
-                # - commonsense: 0=ethical, 1=unethical
-                # - deontology: 0=unreasonable (invalid excuse), 1=reasonable (valid excuse)
-                # - justice: 0=unreasonable (unfair), 1=reasonable (fair)
-                # - virtue: 0=contradicts (doesn't match), 1=matches
-                if category_val in ("deontology", "justice"):
-                    # unreasonable=0, reasonable=1
-                    semantic_label = 0 if semantic_class == "unreasonable" else (1 if semantic_class == "reasonable" else None)
-                elif category_val == "virtue":
-                    # contradicts=0, matches=1
-                    semantic_label = 1 if semantic_class == "matches" else (0 if semantic_class == "contradicts" else None)
-                else:  # commonsense, commonsense_hard
-                    semantic_label = 1 if semantic_class == "unethical" else (0 if semantic_class == "ethical" else None)
+                # Use centralized category-aware label mapping
+                semantic_label = _classification_to_label(semantic_class, category_val)
 
                 semantic_eval = EvaluationDetail(
                     classification=semantic_class,
