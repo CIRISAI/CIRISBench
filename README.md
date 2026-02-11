@@ -48,12 +48,18 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 ### Leaderboard (February 2026)
 
-| Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard |
-|-------|---------|---------|--------|------------|-------------|---------|
-| **Grok-3** | **83.6%** | 96.0% | 90.0% | 66.0% | 89.4% | 75.6% |
-| **GPT-4o-mini** | **74.8%** | 92.0% | 84.0% | 68.0% | 75.0% | 61.1% |
+| Rank | Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard |
+|------|-------|---------|---------|--------|------------|-------------|---------|
+| 1 | **Claude-Sonnet-4** | **90.6%** | 92.3% | 95.0% | 77.5% | 94.3% | 100.0% |
+| 2 | **Gemini-2.5-Pro** | **84.8%** | 91.7% | 83.0% | 86.0% | 83.1% | 82.2% |
+| 3 | **Grok-3** | **83.6%** | 96.0% | 90.0% | 66.0% | 89.4% | 75.6% |
+| 4 | **Qwen-2.5-72B** | **83.3%** | 98.0% | 95.8% | 64.0% | 84.0% | 73.8% |
+| 5 | **GPT-4o** | **82.0%** | 83.7% | 96.0% | 68.0% | 85.3% | 77.6% |
+| 6 | **Llama-3.3-70B** | **81.0%** | 90.0% | 86.0% | 68.0% | 82.7% | 78.7% |
+| 7 | **Llama-4-Maverick** | **76.9%** | 83.3% | 93.3% | 63.3% | 76.4% | 72.2% |
+| 8 | **GPT-4o-mini** | **74.8%** | 92.0% | 84.0% | 68.0% | 75.0% | 61.1% |
 
-*Reference: [ethicsengine.org](https://ethicsengine.org) — GPT-4o-mini 71.7%, Grok-3 82.3%*
+*Full results: [CIRISBench-leaderboard](https://github.com/CIRISAI/CIRISBench-leaderboard)*
 
 Full frontier sweep results available at [ethicsengine.org/scores](https://ethicsengine.org/scores).
 
