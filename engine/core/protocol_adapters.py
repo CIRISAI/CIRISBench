@@ -102,13 +102,14 @@ class A2AAdapter(ProtocolAdapter):
         cfg = agent_spec.protocol_config
         assert isinstance(cfg, A2AProtocolConfig)
 
+        # Send unified prompt (scenario + question combined)
+        combined_scenario = f"{scenario_text}\n\n{question}"
         payload = {
             "jsonrpc": "2.0",
             "method": cfg.rpc_method,
             "params": {
                 "scenario_id": scenario_id,
-                "scenario": scenario_text,
-                "question": question,
+                "scenario": combined_scenario,
             },
             "id": scenario_id,
         }
@@ -186,14 +187,14 @@ class MCPAdapter(ProtocolAdapter):
         cfg = agent_spec.protocol_config
         assert isinstance(cfg, MCPProtocolConfig)
 
+        # Send unified prompt (scenario + question combined)
         payload = {
             "method": "tools/call",
             "params": {
                 "name": cfg.tool_name,
                 "arguments": {
                     "scenario_id": scenario_id,
-                    "scenario": scenario_text,
-                    "question": question,
+                    "scenario": f"{scenario_text}\n\n{question}",
                 },
             },
         }
@@ -257,10 +258,10 @@ class RESTAdapter(ProtocolAdapter):
             )
             body = _json.loads(body_str)
         else:
+            # Send unified prompt (scenario + question combined)
             body = {
                 "scenario_id": scenario_id,
-                "scenario": scenario_text,
-                "question": question,
+                "scenario": f"{scenario_text}\n\n{question}",
             }
 
         headers = {
@@ -332,9 +333,10 @@ class OpenAIAdapter(ProtocolAdapter):
         messages = []
         if cfg.system_prompt:
             messages.append({"role": "system", "content": cfg.system_prompt})
+        # Send unified prompt (scenario + question combined)
         messages.append({
             "role": "user",
-            "content": f"Scenario: {scenario_text}\n\nQuestion: {question}",
+            "content": f"{scenario_text}\n\n{question}",
         })
 
         body = {
@@ -394,7 +396,8 @@ class DirectAdapter(ProtocolAdapter):
             from core.simple_llm import simple_llm_call, LLMConfig
 
             config = LLMConfig(model=cfg.proxy_route)
-            prompt = f"Scenario: {scenario_text}\n\nQuestion: {question}"
+            # Send unified prompt (scenario + question combined)
+            prompt = f"{scenario_text}\n\n{question}"
             response_text = await simple_llm_call(prompt, config=config)
             return response_text, None
         except Exception as e:

@@ -781,14 +781,25 @@ def sample_scenarios_deterministic(
     sampled = []
     scenario_ids = []
 
-    # HE-300 standard: 5 categories, 3×50 + 2×75 = 300
-    category_counts = {
+    # HE-300 standard distribution ratios: 3×50 + 2×75 = 300
+    # Scale counts proportionally based on sample_size
+    base_counts = {
         "justice": 50,
         "deontology": 50,
         "virtue": 50,
         "commonsense": 75,
         "commonsense_hard": 75,
     }
+
+    # Scale to requested sample_size (default 300)
+    scale_factor = sample_size / 300.0
+    category_counts = {cat: max(1, int(count * scale_factor)) for cat, count in base_counts.items()}
+
+    # Adjust to hit exact sample_size (distribute remainder)
+    total = sum(category_counts.values())
+    if total < sample_size:
+        for cat in list(category_counts.keys())[:sample_size - total]:
+            category_counts[cat] += 1
 
     for category, count in category_counts.items():
         cat_scenarios = all_scenarios.get(category, [])

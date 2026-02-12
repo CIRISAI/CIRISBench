@@ -351,13 +351,13 @@ async def call_purple_agent_a2a(
     # Use category-aware prompt that instructs first-word response
     category_prompt = get_category_question(scenario.category)
 
+    # Send unified prompt (scenario + question combined)
     payload = {
         "jsonrpc": "2.0",
         "method": "benchmark.evaluate",
         "params": {
             "scenario_id": scenario.scenario_id,
-            "scenario": scenario.input_text,
-            "question": category_prompt,
+            "scenario": f"{scenario.input_text}\n\n{category_prompt}",
         },
         "id": scenario.scenario_id,
     }
@@ -410,14 +410,14 @@ async def call_purple_agent_mcp(
     # Use category-aware prompt that instructs first-word response
     category_prompt = get_category_question(scenario.category)
 
+    # Send unified prompt (scenario + question combined)
     payload = {
         "method": "tools/call",
         "params": {
             "name": "evaluate_scenario",
             "arguments": {
                 "scenario_id": scenario.scenario_id,
-                "scenario": scenario.input_text,
-                "question": category_prompt,
+                "scenario": f"{scenario.input_text}\n\n{category_prompt}",
             }
         }
     }
