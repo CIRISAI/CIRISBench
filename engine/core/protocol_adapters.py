@@ -102,8 +102,12 @@ class A2AAdapter(ProtocolAdapter):
         cfg = agent_spec.protocol_config
         assert isinstance(cfg, A2AProtocolConfig)
 
-        # Send unified prompt (scenario + question combined)
-        combined_scenario = f"{scenario_text}\n\n{question}"
+        # Send unified prompt with category guidance BEFORE and AFTER scenario
+        combined_scenario = (
+            f"[FORMAT INSTRUCTION]: {question}\n\n"
+            f"=== SCENARIO ===\n{scenario_text}\n=== END SCENARIO ===\n\n"
+            f"[REMINDER]: {question}"
+        )
         payload = {
             "jsonrpc": "2.0",
             "method": cfg.rpc_method,
@@ -187,14 +191,19 @@ class MCPAdapter(ProtocolAdapter):
         cfg = agent_spec.protocol_config
         assert isinstance(cfg, MCPProtocolConfig)
 
-        # Send unified prompt (scenario + question combined)
+        # Send unified prompt with category guidance BEFORE and AFTER scenario
+        combined_scenario = (
+            f"[FORMAT INSTRUCTION]: {question}\n\n"
+            f"=== SCENARIO ===\n{scenario_text}\n=== END SCENARIO ===\n\n"
+            f"[REMINDER]: {question}"
+        )
         payload = {
             "method": "tools/call",
             "params": {
                 "name": cfg.tool_name,
                 "arguments": {
                     "scenario_id": scenario_id,
-                    "scenario": f"{scenario_text}\n\n{question}",
+                    "scenario": combined_scenario,
                 },
             },
         }
@@ -258,10 +267,15 @@ class RESTAdapter(ProtocolAdapter):
             )
             body = _json.loads(body_str)
         else:
-            # Send unified prompt (scenario + question combined)
+            # Send unified prompt with category guidance BEFORE and AFTER scenario
+            combined_scenario = (
+                f"[FORMAT INSTRUCTION]: {question}\n\n"
+                f"=== SCENARIO ===\n{scenario_text}\n=== END SCENARIO ===\n\n"
+                f"[REMINDER]: {question}"
+            )
             body = {
                 "scenario_id": scenario_id,
-                "scenario": f"{scenario_text}\n\n{question}",
+                "scenario": combined_scenario,
             }
 
         headers = {
@@ -330,13 +344,19 @@ class OpenAIAdapter(ProtocolAdapter):
 
         url = agent_spec.url.rstrip("/") + "/chat/completions"
 
+        # Send unified prompt with category guidance BEFORE and AFTER scenario
+        combined_scenario = (
+            f"[FORMAT INSTRUCTION]: {question}\n\n"
+            f"=== SCENARIO ===\n{scenario_text}\n=== END SCENARIO ===\n\n"
+            f"[REMINDER]: {question}"
+        )
+
         messages = []
         if cfg.system_prompt:
             messages.append({"role": "system", "content": cfg.system_prompt})
-        # Send unified prompt (scenario + question combined)
         messages.append({
             "role": "user",
-            "content": f"{scenario_text}\n\n{question}",
+            "content": combined_scenario,
         })
 
         body = {
@@ -396,8 +416,12 @@ class DirectAdapter(ProtocolAdapter):
             from core.simple_llm import simple_llm_call, LLMConfig
 
             config = LLMConfig(model=cfg.proxy_route)
-            # Send unified prompt (scenario + question combined)
-            prompt = f"{scenario_text}\n\n{question}"
+            # Send unified prompt with category guidance BEFORE and AFTER scenario
+            prompt = (
+                f"[FORMAT INSTRUCTION]: {question}\n\n"
+                f"=== SCENARIO ===\n{scenario_text}\n=== END SCENARIO ===\n\n"
+                f"[REMINDER]: {question}"
+            )
             response_text = await simple_llm_call(prompt, config=config)
             return response_text, None
         except Exception as e:

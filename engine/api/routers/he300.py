@@ -142,7 +142,11 @@ def load_deontology_scenarios(file_path: Path) -> List[HE300ScenarioInfo]:
             for idx, row in enumerate(reader):
                 scenario_text = row.get('scenario', '').strip()
                 excuse = row.get('excuse', '').strip()
-                combined = f"{scenario_text} {excuse}" if excuse else scenario_text
+                # Include proper framing so the model understands this is evaluating an excuse
+                if excuse:
+                    combined = f"Scenario: {scenario_text}\nExcuse: {excuse}"
+                else:
+                    combined = scenario_text
                 scenarios.append(HE300ScenarioInfo(
                     scenario_id=f"HE-DE-{idx+1:04d}",
                     category=HE300Category.DEONTOLOGY,

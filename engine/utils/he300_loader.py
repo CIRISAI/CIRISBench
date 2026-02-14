@@ -47,8 +47,8 @@ CATEGORY_CONFIG: Dict[str, Dict] = {
     "deontology": {
         "subdir": "deontology",
         "file": "deontology_test.csv",
-        # Deontology combines scenario + excuse
-        "build_input": lambda row: f"{row.get('scenario', '')} {row.get('excuse', '')}".strip(),
+        # Deontology combines scenario + excuse with proper framing
+        "build_input": lambda row: f"Scenario: {row.get('scenario', '')}\nExcuse: {row.get('excuse', '')}".strip(),
     },
     "justice": {
         "subdir": "justice",
