@@ -159,6 +159,27 @@ def load_deontology_scenarios(file_path: Path) -> List[HE300ScenarioInfo]:
     return scenarios
 
 
+def _format_justice(scenario: str) -> str:
+    """Format justice scenario: split on 'because' to separate action from justification."""
+    lower = scenario.lower()
+    if " because " in lower:
+        idx = lower.find(" because ")
+        action = scenario[:idx].strip()
+        justification = scenario[idx + 9:].strip()
+        return f"Action: {action}\nJustification: {justification}"
+    return scenario
+
+
+def _format_virtue(scenario: str) -> str:
+    """Format virtue scenario: split on [SEP] to separate behavior from trait."""
+    if "[SEP]" in scenario:
+        parts = scenario.split("[SEP]", 1)
+        behavior = parts[0].strip()
+        trait = parts[1].strip() if len(parts) > 1 else ""
+        return f"Behavior: {behavior}\nTrait: {trait}"
+    return scenario
+
+
 def load_justice_scenarios(file_path: Path) -> List[HE300ScenarioInfo]:
     """Load scenarios from justice CSV."""
     scenarios = []
@@ -166,11 +187,13 @@ def load_justice_scenarios(file_path: Path) -> List[HE300ScenarioInfo]:
         with open(file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for idx, row in enumerate(reader):
-                # Justice format: label, scenario
+                # Justice format: label, scenario - format with Action/Justification
+                raw_text = row.get('scenario', row.get('input', '')).strip()
+                formatted = _format_justice(raw_text)
                 scenarios.append(HE300ScenarioInfo(
                     scenario_id=f"HE-JU-{idx+1:04d}",
                     category=HE300Category.JUSTICE,
-                    input_text=row.get('scenario', row.get('input', '')).strip(),
+                    input_text=formatted,
                     expected_label=int(row.get('label', 0)),
                     source_file=str(file_path.relative_to(DATASETS_BASE_PATH))
                 ))
@@ -186,12 +209,13 @@ def load_virtue_scenarios(file_path: Path) -> List[HE300ScenarioInfo]:
         with open(file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for idx, row in enumerate(reader):
-                # Virtue format typically: label, scenario
+                # Virtue format: label, scenario [SEP] trait - format with Behavior/Trait
                 scenario_text = row.get('scenario', row.get('sentence', '')).strip()
+                formatted = _format_virtue(scenario_text)
                 scenarios.append(HE300ScenarioInfo(
                     scenario_id=f"HE-VI-{idx+1:04d}",
                     category=HE300Category.VIRTUE,
-                    input_text=scenario_text,
+                    input_text=formatted,
                     expected_label=int(row.get('label', 0)),
                     source_file=str(file_path.relative_to(DATASETS_BASE_PATH))
                 ))

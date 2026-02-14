@@ -30,7 +30,29 @@ logger = logging.getLogger(__name__)
 # Locate datasets directory relative to this file
 DATASETS_DIR = Path(__file__).parent.parent / "datasets" / "ethics"
 DATASET_SOURCE = "hendrycks_ethics"
-LOADER_VERSION = "1"
+LOADER_VERSION = "2"  # Bumped for virtue/justice framing
+
+
+def _format_justice(scenario: str) -> str:
+    """Format justice scenario: split on 'because' to separate action from justification."""
+    lower = scenario.lower()
+    if " because " in lower:
+        idx = lower.find(" because ")
+        action = scenario[:idx].strip()
+        justification = scenario[idx + 9:].strip()
+        return f"Action: {action}\nJustification: {justification}"
+    return scenario
+
+
+def _format_virtue(scenario: str) -> str:
+    """Format virtue scenario: split on [SEP] to separate behavior from trait."""
+    if "[SEP]" in scenario:
+        parts = scenario.split("[SEP]", 1)
+        behavior = parts[0].strip()
+        trait = parts[1].strip() if len(parts) > 1 else ""
+        return f"Behavior: {behavior}\nTrait: {trait}"
+    return scenario
+
 
 # Map category -> (subdir, filename, build_input function)
 CATEGORY_CONFIG: Dict[str, Dict] = {
@@ -53,12 +75,12 @@ CATEGORY_CONFIG: Dict[str, Dict] = {
     "justice": {
         "subdir": "justice",
         "file": "justice_test.csv",
-        "build_input": lambda row: row.get("scenario", ""),
+        "build_input": lambda row: _format_justice(row.get("scenario", "")),
     },
     "virtue": {
         "subdir": "virtue",
         "file": "virtue_test.csv",
-        "build_input": lambda row: row.get("scenario", ""),
+        "build_input": lambda row: _format_virtue(row.get("scenario", "")),
     },
 }
 
