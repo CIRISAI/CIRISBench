@@ -186,6 +186,45 @@ class BenchmarkResultsResponse(BaseModel):
     total: int
 
 
+# --- Label Display Utilities ---
+def get_label_display(label: Optional[int], category: str, is_expected: bool = True) -> str:
+    """Get the correct label display based on category.
+
+    Label mapping per Hendrycks Ethics dataset:
+    - commonsense/commonsense_hard: 0=ETHICAL, 1=UNETHICAL
+    - deontology/justice: 0=UNREASONABLE, 1=REASONABLE
+    - virtue: 0=CONTRADICTS, 1=MATCHES
+    """
+    if label is None:
+        return "N/A" if is_expected else "ERROR"
+
+    category_lower = category.lower() if category else "commonsense"
+
+    if category_lower in ("commonsense", "commonsense_hard"):
+        return "UNETHICAL" if label == 1 else "ETHICAL"
+    elif category_lower in ("deontology", "justice"):
+        return "REASONABLE" if label == 1 else "UNREASONABLE"
+    elif category_lower == "virtue":
+        return "MATCHES" if label == 1 else "CONTRADICTS"
+    else:
+        # Default to commonsense labels
+        return "UNETHICAL" if label == 1 else "ETHICAL"
+
+
+def get_expected_classification(expected_label: int, category: str) -> str:
+    """Get the expected classification string for evaluation badge comparison."""
+    category_lower = category.lower() if category else "commonsense"
+
+    if category_lower in ("commonsense", "commonsense_hard"):
+        return "unethical" if expected_label == 1 else "ethical"
+    elif category_lower in ("deontology", "justice"):
+        return "reasonable" if expected_label == 1 else "unreasonable"
+    elif category_lower == "virtue":
+        return "matches" if expected_label == 1 else "contradicts"
+    else:
+        return "unethical" if expected_label == 1 else "ethical"
+
+
 # --- Signing Utilities ---
 def get_signing_key() -> bytes:
     """Get or generate signing key."""
@@ -333,7 +372,7 @@ def generate_markdown_report(request: ReportRequest, signature: Optional[ReportS
                 lines.append("")
                 lines.append(f"**Input:** {s.input_text[:200]}{'...' if len(s.input_text) > 200 else ''}")
                 lines.append("")
-                lines.append(f"**Expected:** {'UNETHICAL' if s.expected_label == 1 else 'ETHICAL'} | **Predicted:** {'UNETHICAL' if s.predicted_label == 1 else 'ETHICAL'}")
+                lines.append(f"**Expected:** {get_label_display(s.expected_label, s.category)} | **Predicted:** {get_label_display(s.predicted_label, s.category, is_expected=False)}")
                 lines.append("")
                 if s.model_response:
                     lines.append(f"> {s.model_response[:300]}{'...' if len(s.model_response) > 300 else ''}")
@@ -407,8 +446,8 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
     scenarios_rows = []
     for s in request.scenarios:
         status_class = 'correct' if s.is_correct else 'incorrect'
-        expected = 'UNETHICAL' if s.expected_label == 1 else 'ETHICAL' if s.expected_label == 0 else 'N/A'
-        predicted = 'UNETHICAL' if s.predicted_label == 1 else 'ETHICAL' if s.predicted_label == 0 else 'ERROR'
+        expected = get_label_display(s.expected_label, s.category, is_expected=True)
+        predicted = get_label_display(s.predicted_label, s.category, is_expected=False)
         # Escape HTML in text content
         input_text_escaped = s.input_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
         response_escaped = s.model_response.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;') if s.model_response else ''
@@ -428,11 +467,13 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
         agree_icon = ''
 
         if s.heuristic_eval:
-            h_class = 'correct' if s.heuristic_eval.classification == ('unethical' if s.expected_label == 1 else 'ethical') else 'incorrect'
+            expected_class = get_expected_classification(s.expected_label, s.category) if s.expected_label is not None else ''
+            h_class = 'correct' if s.heuristic_eval.classification == expected_class else 'incorrect'
             heuristic_html = f'<span class="eval-badge {h_class}" title="Confidence: {s.heuristic_eval.confidence:.0%}">{s.heuristic_eval.classification.upper()}</span>'
 
         if s.semantic_eval:
-            sem_class = 'correct' if s.semantic_eval.classification == ('unethical' if s.expected_label == 1 else 'ethical') else 'incorrect'
+            expected_class = get_expected_classification(s.expected_label, s.category) if s.expected_label is not None else ''
+            sem_class = 'correct' if s.semantic_eval.classification == expected_class else 'incorrect'
             semantic_html = f'<span class="eval-badge {sem_class}" title="Confidence: {s.semantic_eval.confidence:.0%}">{s.semantic_eval.classification.upper()}</span>'
 
         if s.heuristic_eval and s.semantic_eval:
@@ -987,14 +1028,38 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
             const s = scenariosMap.get(scenarioId);
             if (!s) return;
 
-            // Label mapping: 0 = ETHICAL, 1 = UNETHICAL (per Hendrycks Ethics dataset convention)
-            const expected = s.expected_label === 1 ? 'UNETHICAL' : s.expected_label === 0 ? 'ETHICAL' : 'N/A';
-            const predicted = s.predicted_label === 1 ? 'UNETHICAL' : s.predicted_label === 0 ? 'ETHICAL' : 'ERROR';
+            // Category-specific label mapping (per Hendrycks Ethics dataset convention)
+            function getLabelDisplay(label, category, isExpected = true) {{
+                if (label === null || label === undefined) return isExpected ? 'N/A' : 'ERROR';
+                const cat = (category || 'commonsense').toLowerCase();
+                if (cat === 'commonsense' || cat === 'commonsense_hard') {{
+                    return label === 1 ? 'UNETHICAL' : 'ETHICAL';
+                }} else if (cat === 'deontology' || cat === 'justice') {{
+                    return label === 1 ? 'REASONABLE' : 'UNREASONABLE';
+                }} else if (cat === 'virtue') {{
+                    return label === 1 ? 'MATCHES' : 'CONTRADICTS';
+                }}
+                return label === 1 ? 'UNETHICAL' : 'ETHICAL';
+            }}
+            const expected = getLabelDisplay(s.expected_label, s.category, true);
+            const predicted = getLabelDisplay(s.predicted_label, s.category, false);
 
             // Format evaluation details
+            function getExpectedClass(label, category) {{
+                const cat = (category || 'commonsense').toLowerCase();
+                if (cat === 'commonsense' || cat === 'commonsense_hard') {{
+                    return label === 1 ? 'unethical' : 'ethical';
+                }} else if (cat === 'deontology' || cat === 'justice') {{
+                    return label === 1 ? 'reasonable' : 'unreasonable';
+                }} else if (cat === 'virtue') {{
+                    return label === 1 ? 'matches' : 'contradicts';
+                }}
+                return label === 1 ? 'unethical' : 'ethical';
+            }}
             const formatEval = (evalData, evalName) => {{
                 if (!evalData) return `<span style="color: #9ca3af;">Not available</span>`;
-                const isCorrect = evalData.classification === (s.expected_label === 1 ? 'unethical' : 'ethical');
+                const expectedClass = getExpectedClass(s.expected_label, s.category);
+                const isCorrect = evalData.classification === expectedClass;
                 const badgeClass = isCorrect ? 'correct' : 'incorrect';
                 return `
                     <span class="eval-badge ${{badgeClass}}">${{evalData.classification.toUpperCase()}}</span>
@@ -1228,16 +1293,32 @@ def generate_html_report(request: ReportRequest, signature: Optional[ReportSigna
                     <h2>Scenario Results</h2>
                     <table>
                         <tr><th>ID</th><th>Category</th><th>Input</th><th>Expected</th><th>Predicted</th><th>Correct</th></tr>
-                        ${{reportData.scenarios.map(s => `
+                        ${{reportData.scenarios.map(s => {{
+                            const cat = (s.category || 'commonsense').toLowerCase();
+                            let expLabel, predLabel;
+                            if (cat === 'commonsense' || cat === 'commonsense_hard') {{
+                                expLabel = s.expected_label === 1 ? 'UNETHICAL' : 'ETHICAL';
+                                predLabel = s.predicted_label === 1 ? 'UNETHICAL' : s.predicted_label === 0 ? 'ETHICAL' : 'ERROR';
+                            }} else if (cat === 'deontology' || cat === 'justice') {{
+                                expLabel = s.expected_label === 1 ? 'REASONABLE' : 'UNREASONABLE';
+                                predLabel = s.predicted_label === 1 ? 'REASONABLE' : s.predicted_label === 0 ? 'UNREASONABLE' : 'ERROR';
+                            }} else if (cat === 'virtue') {{
+                                expLabel = s.expected_label === 1 ? 'MATCHES' : 'CONTRADICTS';
+                                predLabel = s.predicted_label === 1 ? 'MATCHES' : s.predicted_label === 0 ? 'CONTRADICTS' : 'ERROR';
+                            }} else {{
+                                expLabel = s.expected_label === 1 ? 'UNETHICAL' : 'ETHICAL';
+                                predLabel = s.predicted_label === 1 ? 'UNETHICAL' : s.predicted_label === 0 ? 'ETHICAL' : 'ERROR';
+                            }}
+                            return `
                             <tr class="${{s.is_correct ? 'correct' : 'incorrect'}}">
                                 <td>${{s.scenario_id}}</td>
                                 <td>${{s.category}}</td>
                                 <td>${{s.input_text.substring(0, 60)}}${{s.input_text.length > 60 ? '...' : ''}}</td>
-                                <td>${{s.expected_label === 1 ? 'ETHICAL' : 'UNETHICAL'}}</td>
-                                <td>${{s.predicted_label === 1 ? 'ETHICAL' : s.predicted_label === 0 ? 'UNETHICAL' : 'ERROR'}}</td>
+                                <td>${{expLabel}}</td>
+                                <td>${{predLabel}}</td>
                                 <td>${{s.is_correct ? 'Yes' : 'No'}}</td>
                             </tr>
-                        `).join('')}}
+                        `}}).join('')}}
                     </table>
 
                     ${{reportData.signature ? `
