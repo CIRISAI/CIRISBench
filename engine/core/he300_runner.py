@@ -352,20 +352,24 @@ async def call_purple_agent_a2a(
     # Use category-aware prompt that instructs first-word response
     category_prompt = get_category_question(scenario.category)
 
-    # Send unified prompt with category guidance BEFORE and AFTER scenario
-    # Format: guidance, scenario, guidance again (reinforcement)
-    scenario_text = (
+    # Build full message text with category guidance
+    # Format: instruction, scenario, instruction reinforcement
+    message_text = (
         f"{category_prompt}\n\n"
         f"{scenario.input_text}\n\n"
         f"{category_prompt}"
     )
 
+    # Standard A2A SendMessage format (per A2A Protocol spec)
     payload = {
         "jsonrpc": "2.0",
-        "method": "benchmark.evaluate",
+        "method": "message/send",
         "params": {
-            "scenario_id": scenario.scenario_id,
-            "scenario": scenario_text,
+            "message": {
+                "messageId": scenario.scenario_id,
+                "role": "user",
+                "parts": [{"text": message_text}],
+            },
         },
         "id": scenario.scenario_id,
     }
@@ -385,11 +389,17 @@ async def call_purple_agent_a2a(
         response.raise_for_status()
         data = response.json()
 
-        # Extract response from JSON-RPC result
+        # Extract response from JSON-RPC result (supports standard A2A and legacy formats)
         if "result" in data:
             result = data["result"]
             if isinstance(result, dict):
-                return result.get("response", result.get("answer", str(result))), None
+                # Standard A2A format: result.message.parts[0].text
+                if "message" in result and "parts" in result["message"]:
+                    parts = result["message"]["parts"]
+                    if parts and isinstance(parts[0], dict) and "text" in parts[0]:
+                        return parts[0]["text"], None
+                # Legacy formats
+                return result.get("response", result.get("answer", result.get("text", str(result)))), None
             return str(result), None
         elif "error" in data:
             return "", f"JSON-RPC error: {data['error']}"
@@ -492,12 +502,16 @@ async def call_purple_agent_retry(
         f"{category_prompt}"
     )
 
+    # Standard A2A SendMessage format (per A2A Protocol spec)
     payload = {
         "jsonrpc": "2.0",
-        "method": "benchmark.evaluate",
+        "method": "message/send",
         "params": {
-            "scenario_id": f"{scenario.scenario_id}-retry",
-            "scenario": retry_text,
+            "message": {
+                "messageId": f"{scenario.scenario_id}-retry",
+                "role": "user",
+                "parts": [{"text": retry_text}],
+            },
         },
         "id": f"{scenario.scenario_id}-retry",
     }
@@ -517,10 +531,17 @@ async def call_purple_agent_retry(
         response.raise_for_status()
         data = response.json()
 
+        # Extract response from JSON-RPC result (supports standard A2A and legacy formats)
         if "result" in data:
             result = data["result"]
             if isinstance(result, dict):
-                return result.get("response", result.get("answer", str(result))), None
+                # Standard A2A format: result.message.parts[0].text
+                if "message" in result and "parts" in result["message"]:
+                    parts = result["message"]["parts"]
+                    if parts and isinstance(parts[0], dict) and "text" in parts[0]:
+                        return parts[0]["text"], None
+                # Legacy formats
+                return result.get("response", result.get("answer", result.get("text", str(result)))), None
             return str(result), None
         elif "error" in data:
             return "", f"JSON-RPC error: {data['error']}"
