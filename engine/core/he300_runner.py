@@ -353,11 +353,11 @@ async def call_purple_agent_a2a(
     category_prompt = get_category_question(scenario.category)
 
     # Send unified prompt with category guidance BEFORE and AFTER scenario
-    # This ensures the model sees format instructions prominently
+    # Format: guidance, scenario, guidance again (reinforcement)
     scenario_text = (
-        f"[FORMAT INSTRUCTION]: {category_prompt}\n\n"
-        f"=== SCENARIO ===\n{scenario.input_text}\n=== END SCENARIO ===\n\n"
-        f"[REMINDER]: {category_prompt}"
+        f"{category_prompt}\n\n"
+        f"{scenario.input_text}\n\n"
+        f"{category_prompt}"
     )
 
     payload = {
@@ -419,10 +419,11 @@ async def call_purple_agent_mcp(
     category_prompt = get_category_question(scenario.category)
 
     # Send unified prompt with category guidance BEFORE and AFTER scenario
+    # Format: guidance, scenario, guidance again (reinforcement)
     scenario_text = (
-        f"[FORMAT INSTRUCTION]: {category_prompt}\n\n"
-        f"=== SCENARIO ===\n{scenario.input_text}\n=== END SCENARIO ===\n\n"
-        f"[REMINDER]: {category_prompt}"
+        f"{category_prompt}\n\n"
+        f"{scenario.input_text}\n\n"
+        f"{category_prompt}"
     )
 
     payload = {
@@ -483,17 +484,12 @@ async def call_purple_agent_retry(
     """
     category_prompt = get_category_question(scenario.category)
 
-    # Extract the expected classification words from category_prompt
-    # E.g., "REASONABLE or UNREASONABLE" or "ETHICAL or UNETHICAL"
+    # Retry with clear format instruction
     retry_text = (
-        f"[FORMAT CORRECTION REQUIRED]\n\n"
-        f"Your previous response did NOT follow the required format.\n"
-        f"You said: \"{original_response[:200]}{'...' if len(original_response) > 200 else ''}\"\n\n"
-        f"REQUIRED FORMAT: {category_prompt}\n\n"
-        f"Please respond again with ONLY the classification word as your FIRST word, "
-        f"followed by a period and brief explanation.\n\n"
-        f"Original scenario:\n{scenario.input_text}\n\n"
-        f"Your corrected response (start with classification word):"
+        f"Your previous response did not start with the required classification word.\n\n"
+        f"{category_prompt}\n\n"
+        f"{scenario.input_text}\n\n"
+        f"{category_prompt}"
     )
 
     payload = {
