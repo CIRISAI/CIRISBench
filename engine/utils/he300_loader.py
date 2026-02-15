@@ -84,10 +84,20 @@ CATEGORY_CONFIG: Dict[str, Dict] = {
     },
 }
 
-# HE-300 category distribution: 75/75/50/50/50 = 300
+# HE-300 v1.0 category distribution: 75/75/50/50/50 = 300
 HE300_CATEGORY_COUNTS = {
     "commonsense": 75,
     "commonsense_hard": 75,
+    "deontology": 50,
+    "justice": 50,
+    "virtue": 50,
+}
+
+# HE-300 v1.1 category distribution: 50/100/50/50/50 = 300
+# Emphasizes harder commonsense scenarios for better discrimination
+HE300_V11_CATEGORY_COUNTS = {
+    "commonsense": 50,
+    "commonsense_hard": 100,
     "deontology": 50,
     "justice": 50,
     "virtue": 50,
@@ -230,14 +240,92 @@ def load_scenarios(
     return sampled, dataset_meta
 
 
-def load_he300(seed: Optional[int] = 42) -> List[ScenarioInput]:
-    """Convenience function to load standard HE-300 benchmark (300 scenarios).
+def load_he300(seed: Optional[int] = 42, version: str = "1.0") -> List[ScenarioInput]:
+    """Convenience function to load HE-300 benchmark (300 scenarios).
 
     Args:
         seed: Random seed for reproducible sampling (default: 42)
+        version: Benchmark version - "1.0" (75/75/50/50/50) or "1.1" (50/100/50/50/50)
 
     Returns:
         List of 300 ScenarioInput objects with correct distribution.
     """
-    scenarios, _ = load_scenarios(sample_size=300, seed=seed)
+    if version == "1.1":
+        scenarios, _ = load_scenarios_v11(sample_size=300, seed=seed)
+    else:
+        scenarios, _ = load_scenarios(sample_size=300, seed=seed)
     return scenarios
+
+
+def load_scenarios_v11(
+    sample_size: int = 300,
+    categories: Optional[List[str]] = None,
+    seed: Optional[int] = None,
+    datasets_dir: Optional[Path] = None,
+) -> Tuple[List[ScenarioInput], DatasetMeta]:
+    """Load HE-300 v1.1 scenarios with harder commonsense emphasis.
+
+    HE-300 v1.1 split: commonsense=50, commonsense_hard=100,
+    deontology=50, justice=50, virtue=50 (total 300).
+
+    Args:
+        sample_size: Total number of scenarios to return.
+        categories: Which categories to include (default: all five).
+        seed: Random seed for reproducible sampling.
+        datasets_dir: Override datasets directory.
+
+    Returns:
+        Tuple of (scenarios, dataset_meta).
+    """
+    cats = categories or list(HE300_V11_CATEGORY_COUNTS.keys())
+    rng = random.Random(seed)
+    base_dir = datasets_dir or DATASETS_DIR
+
+    # Load all scenarios per category
+    all_by_cat: Dict[str, List[ScenarioInput]] = {}
+    checksums: Dict[str, str] = {}
+    for cat in cats:
+        all_by_cat[cat] = _load_category(cat, base_dir)
+        config = CATEGORY_CONFIG[cat]
+        csv_path = base_dir / config["subdir"] / config["file"]
+        checksums[config["file"]] = _file_sha256(csv_path)
+
+    # Use HE-300 v1.1 distribution
+    if sample_size == 300 and categories is None:
+        category_counts = HE300_V11_CATEGORY_COUNTS
+    else:
+        # Fallback: divide equally
+        per_cat = sample_size // len(cats)
+        remainder = sample_size % len(cats)
+        category_counts = {}
+        for i, cat in enumerate(cats):
+            category_counts[cat] = per_cat + (1 if i < remainder else 0)
+
+    sampled: List[ScenarioInput] = []
+    for cat in cats:
+        n = category_counts.get(cat, 0)
+        pool = all_by_cat[cat]
+        if n >= len(pool):
+            sampled.extend(pool)
+        else:
+            sampled.extend(rng.sample(pool, n))
+
+    rng.shuffle(sampled)
+
+    actual_counts = {}
+    for cat in cats:
+        actual_counts[cat] = sum(1 for s in sampled if s.category == cat)
+
+    dataset_meta = DatasetMeta(
+        source=DATASET_SOURCE,
+        loader_version=LOADER_VERSION + "-v1.1",
+        checksums=checksums,
+        category_counts=actual_counts,
+    )
+
+    logger.info(
+        "Sampled %d HE-300-1.1 scenarios across %d categories (seed=%s): %s",
+        len(sampled), len(cats), seed,
+        {cat: category_counts.get(cat, 0) for cat in cats},
+    )
+    return sampled, dataset_meta

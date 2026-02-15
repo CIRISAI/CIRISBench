@@ -2,15 +2,15 @@
 
 AI Agent Ethics Benchmarking Platform implementing the **HE-300 (Hendrycks Ethics)** benchmark with a unified evaluation pipeline, frontier model scoring, and managed benchmarking services via [ethicsengine.org](https://ethicsengine.org).
 
-> **v0.2.1 — Evaluation Alignment (February 2026)**
+> **HE-300 v1.1 — Harder Benchmark (February 2026)**
 >
-> CIRISBench evaluation logic is now **fully aligned with CIRISNode patterns**:
-> - **Strict first-word parsing** — primary evaluation method, matches CIRISNode behavior
-> - **Category-aware prompts** — Reasonable/Unreasonable (deontology, justice), Matches/Contradicts (virtue)
-> - **Fixed deontology loading** — scenario + excuse columns properly combined
-> - **HE-300 distribution** — correct 75/75/50/50/50 category sampling
+> The benchmark has been upgraded to **v1.1** with improved discrimination:
+> - **Harder distribution** — 50/100/50/50/50 (increased Hard Commonsense from 75 to 100)
+> - **5 runs per model** — Statistical robustness with mean ± std deviation
+> - **Strict first-word parsing** — Primary evaluation method
+> - **Accuracy = correct/total** — Unknowns count as wrong
 >
-> Deontology accuracy improved from ~47% (random guessing) to 66-68% after fixing scenario loading.
+> Top performers: Claude-Sonnet-4 (89.4%), GPT-4o (86.5%), GPT-4o-mini (79.7%)
 
 ## Overview
 
@@ -30,13 +30,15 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 300 ethical scenarios evaluated across five categories:
 
-| Category | Scenarios | Description |
-|----------|-----------|-------------|
-| **Justice** | 50 | Fairness, desert, and equitable treatment |
-| **Deontology** | 50 | Duty-based moral reasoning |
-| **Virtue Ethics** | 50 | Character-based moral reasoning |
-| **Commonsense** | 75 | Everyday moral intuitions |
-| **Commonsense (Hard)** | 75 | Challenging everyday moral intuitions |
+| Category | v1.0 | v1.1 | Description |
+|----------|------|------|-------------|
+| **Commonsense** | 75 | 50 | Everyday moral intuitions |
+| **Commonsense (Hard)** | 75 | 100 | Challenging everyday moral intuitions |
+| **Deontology** | 50 | 50 | Duty-based moral reasoning |
+| **Justice** | 50 | 50 | Fairness, desert, and equitable treatment |
+| **Virtue Ethics** | 50 | 50 | Character-based moral reasoning |
+
+v1.1 increases Hard Commonsense sampling for better model discrimination.
 
 ### Evaluation Pipeline
 
@@ -46,20 +48,16 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 - **Cryptographic trace binding** — every evaluation produces a unique auditable trace ID
 - **Badge computation at write time** — excellence (>=90%), balanced (all categories >=80%), category mastery (>=95%)
 
-### Leaderboard (February 2026)
+### HE-300 v1.1 Leaderboard (February 2026)
 
-| Rank | Model | Overall | Justice | Virtue | Deontology | Commonsense | CS Hard |
-|------|-------|---------|---------|--------|------------|-------------|---------|
-| 1 | **Gemini-2.5-Pro** | **81.7%** | 88.0% | 78.0% | 86.0% | 78.7% | 80.0% |
-| 2 | **Llama-3.3-70B** | **81.0%** | 90.0% | 86.0% | 68.0% | 82.7% | 78.7% |
-| 3 | **GPT-4o** | **77.7%** | 82.0% | 96.0% | 68.0% | 77.3% | 69.3% |
-| 4 | **GPT-4o-mini** | **73.3%** | 92.0% | 84.0% | 68.0% | 72.0% | 58.7% |
-| 5 | **Llama-4-Maverick** | **73.3%** | 80.0% | 84.0% | 62.0% | 73.3% | 69.3% |
-| 6 | **Qwen-2.5-72B** | **66.7%** | 98.0% | 92.0% | 64.0% | 56.0% | 41.3% |
-| 7 | **Grok-3** | **66.3%** | 96.0% | 90.0% | 66.0% | 56.0% | 41.3% |
-| 8 | **Claude-Sonnet-4** | **48.3%** | 72.0% | 38.0% | 62.0% | 44.0% | 34.7% |
+| Rank | Model | Overall | ± Std | CS | CS-Hard | Deont | Justice | Virtue |
+|------|-------|---------|-------|-----|---------|-------|---------|--------|
+| 1 | **Claude-Sonnet-4** | **89.4%** | 1.6% | 93.2% | 85.2% | 93.2% | 93.6% | 86.0% |
+| 2 | **GPT-4o** | **86.5%** | 2.1% | 91.2% | 82.8% | 83.6% | 90.4% | 88.4% |
+| 3 | **GPT-4o-mini** | **79.7%** | 5.1% | 81.6% | 77.6% | 66.8% | 84.8% | 90.0% |
+| 4 | **Grok-3** | **63.6%** | 1.6% | 88.8% | 81.8% | 47.6% | 61.6% | 20.0% |
 
-*Accuracy = correct/total (unknowns count as wrong). [Full results](https://github.com/CIRISAI/CIRISBench-leaderboard)*
+*5 runs per model. Distribution: 50/100/50/50/50. [Full results](https://github.com/CIRISAI/CIRISBench-leaderboard)*
 
 Full frontier sweep results available at [ethicsengine.org/scores](https://ethicsengine.org/scores).
 
