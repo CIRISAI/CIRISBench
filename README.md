@@ -2,15 +2,15 @@
 
 AI Agent Ethics Benchmarking Platform implementing the **HE-300 (Hendrycks Ethics)** benchmark with a unified evaluation pipeline, frontier model scoring, and managed benchmarking services via [ethicsengine.org](https://ethicsengine.org).
 
-> **HE-300 v1.1 — Harder Benchmark (February 2026)**
+> **HE-300 Benchmark Versions**
 >
-> The benchmark has been upgraded to **v1.1** with improved discrimination:
-> - **Harder distribution** — 50/100/50/50/50 (increased Hard Commonsense from 75 to 100)
-> - **5 runs per model** — Statistical robustness with mean ± std deviation
-> - **Strict first-word parsing** — Primary evaluation method
-> - **Accuracy = correct/total** — Unknowns count as wrong
+> | Version | Distribution | Focus |
+> |---------|--------------|-------|
+> | **v1.0** | 75/75/50/50/50 | Original balanced distribution |
+> | **v1.1** | 50/100/50/50/50 | Harder commonsense emphasis |
+> | **v1.2** | 50/50/75/50/75 | Virtue + Deontology emphasis (hardest) |
 >
-> Top performers: Claude-Sonnet-4 (89.4%), GPT-4o (86.5%), GPT-4o-mini (79.7%)
+> v1.2 targets the weakest categories (virtue, deontology) for maximum model discrimination.
 
 ## Overview
 
@@ -30,15 +30,16 @@ CIRISBench is a **standalone AI ethics benchmarking platform**. It evaluates AI 
 
 300 ethical scenarios evaluated across five categories:
 
-| Category | v1.0 | v1.1 | Description |
-|----------|------|------|-------------|
-| **Commonsense** | 75 | 50 | Everyday moral intuitions |
-| **Commonsense (Hard)** | 75 | 100 | Challenging everyday moral intuitions |
-| **Deontology** | 50 | 50 | Duty-based moral reasoning |
-| **Justice** | 50 | 50 | Fairness, desert, and equitable treatment |
-| **Virtue Ethics** | 50 | 50 | Character-based moral reasoning |
+| Category | v1.0 | v1.1 | v1.2 | Description |
+|----------|------|------|------|-------------|
+| **Commonsense** | 75 | 50 | 50 | Everyday moral intuitions |
+| **Commonsense (Hard)** | 75 | 100 | 50 | Challenging everyday moral intuitions |
+| **Deontology** | 50 | 50 | 75 | Duty-based moral reasoning |
+| **Justice** | 50 | 50 | 50 | Fairness, desert, and equitable treatment |
+| **Virtue Ethics** | 50 | 50 | 75 | Character-based moral reasoning |
 
-v1.1 increases Hard Commonsense sampling for better model discrimination.
+- **v1.1**: Increases Hard Commonsense for better discrimination on intuitive scenarios
+- **v1.2**: Increases Virtue + Deontology (weakest categories) for maximum discrimination
 
 ### Evaluation Pipeline
 

@@ -103,6 +103,16 @@ HE300_V11_CATEGORY_COUNTS = {
     "virtue": 50,
 }
 
+# HE-300 v1.2 category distribution: 50/50/75/50/75 = 300
+# Emphasizes virtue and deontology (weakest categories) for better discrimination
+HE300_V12_CATEGORY_COUNTS = {
+    "commonsense": 50,
+    "commonsense_hard": 50,
+    "deontology": 75,
+    "justice": 50,
+    "virtue": 75,
+}
+
 
 @dataclass
 class DatasetMeta:
@@ -245,12 +255,17 @@ def load_he300(seed: Optional[int] = 42, version: str = "1.0") -> List[ScenarioI
 
     Args:
         seed: Random seed for reproducible sampling (default: 42)
-        version: Benchmark version - "1.0" (75/75/50/50/50) or "1.1" (50/100/50/50/50)
+        version: Benchmark version:
+            - "1.0": 75/75/50/50/50 (CS/CS-Hard/Deont/Just/Virt) - original
+            - "1.1": 50/100/50/50/50 - harder commonsense emphasis
+            - "1.2": 50/50/75/50/75 - virtue/deontology emphasis (hardest)
 
     Returns:
         List of 300 ScenarioInput objects with correct distribution.
     """
-    if version == "1.1":
+    if version == "1.2":
+        scenarios, _ = load_scenarios_v12(sample_size=300, seed=seed)
+    elif version == "1.1":
         scenarios, _ = load_scenarios_v11(sample_size=300, seed=seed)
     else:
         scenarios, _ = load_scenarios(sample_size=300, seed=seed)
@@ -325,6 +340,83 @@ def load_scenarios_v11(
 
     logger.info(
         "Sampled %d HE-300-1.1 scenarios across %d categories (seed=%s): %s",
+        len(sampled), len(cats), seed,
+        {cat: category_counts.get(cat, 0) for cat in cats},
+    )
+    return sampled, dataset_meta
+
+
+def load_scenarios_v12(
+    sample_size: int = 300,
+    categories: Optional[List[str]] = None,
+    seed: Optional[int] = None,
+    datasets_dir: Optional[Path] = None,
+) -> Tuple[List[ScenarioInput], DatasetMeta]:
+    """Load HE-300 v1.2 scenarios with virtue/deontology emphasis.
+
+    HE-300 v1.2 split: commonsense=50, commonsense_hard=50,
+    deontology=75, justice=50, virtue=75 (total 300).
+
+    This version emphasizes the categories where models perform worst
+    (virtue and deontology) for better discrimination.
+
+    Args:
+        sample_size: Total number of scenarios to return.
+        categories: Which categories to include (default: all five).
+        seed: Random seed for reproducible sampling.
+        datasets_dir: Override datasets directory.
+
+    Returns:
+        Tuple of (scenarios, dataset_meta).
+    """
+    cats = categories or list(HE300_V12_CATEGORY_COUNTS.keys())
+    rng = random.Random(seed)
+    base_dir = datasets_dir or DATASETS_DIR
+
+    # Load all scenarios per category
+    all_by_cat: Dict[str, List[ScenarioInput]] = {}
+    checksums: Dict[str, str] = {}
+    for cat in cats:
+        all_by_cat[cat] = _load_category(cat, base_dir)
+        config = CATEGORY_CONFIG[cat]
+        csv_path = base_dir / config["subdir"] / config["file"]
+        checksums[config["file"]] = _file_sha256(csv_path)
+
+    # Use HE-300 v1.2 distribution
+    if sample_size == 300 and categories is None:
+        category_counts = HE300_V12_CATEGORY_COUNTS
+    else:
+        # Fallback: divide equally
+        per_cat = sample_size // len(cats)
+        remainder = sample_size % len(cats)
+        category_counts = {}
+        for i, cat in enumerate(cats):
+            category_counts[cat] = per_cat + (1 if i < remainder else 0)
+
+    sampled: List[ScenarioInput] = []
+    for cat in cats:
+        n = category_counts.get(cat, 0)
+        pool = all_by_cat[cat]
+        if n >= len(pool):
+            sampled.extend(pool)
+        else:
+            sampled.extend(rng.sample(pool, n))
+
+    rng.shuffle(sampled)
+
+    actual_counts = {}
+    for cat in cats:
+        actual_counts[cat] = sum(1 for s in sampled if s.category == cat)
+
+    dataset_meta = DatasetMeta(
+        source=DATASET_SOURCE,
+        loader_version=LOADER_VERSION + "-v1.2",
+        checksums=checksums,
+        category_counts=actual_counts,
+    )
+
+    logger.info(
+        "Sampled %d HE-300-1.2 scenarios across %d categories (seed=%s): %s",
         len(sampled), len(cats), seed,
         {cat: category_counts.get(cat, 0) for cat in cats},
     )
