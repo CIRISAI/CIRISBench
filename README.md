@@ -55,13 +55,14 @@ v1.1 increases Hard Commonsense sampling for better model discrimination.
 | 1 | **Claude-Sonnet-4** | **89.4%** | 1.6% | 93.2% | 85.2% | 93.2% | 93.6% | 86.0% |
 | 2 | **GPT-4o** | **86.5%** | 2.1% | 91.2% | 82.8% | 83.6% | 90.4% | 88.4% |
 | 3 | **CIRIS + GPT-4o-mini** | **83.3%** | 1.4% | — | — | — | — | — |
-| 4 | **Llama-4-Maverick** | **81.9%** | 2.1% | 88.0% | 75.6% | 84.4% | 84.8% | 82.8% |
-| 5 | **GPT-4o-mini** | **79.7%** | 5.1% | 81.6% | 77.6% | 66.8% | 84.8% | 90.0% |
-| 6 | **Grok-3** | **63.6%** | 1.6% | 88.8% | 81.8% | 47.6% | 61.6% | 20.0% |
+| 3 | **CIRIS + Llama-4-Maverick** | **83.3%** | 2.7% | 83.7% | 76.3% | 90.0% | 82.4% | 87.6% |
+| 5 | **Llama-4-Maverick** | **81.9%** | 2.1% | 88.0% | 75.6% | 84.4% | 84.8% | 82.8% |
+| 6 | **GPT-4o-mini** | **79.7%** | 5.1% | 81.6% | 77.6% | 66.8% | 84.8% | 90.0% |
+| 7 | **Grok-3** | **63.6%** | 1.6% | 88.8% | 81.8% | 47.6% | 61.6% | 20.0% |
 
 *5 runs per model. Distribution: 50/100/50/50/50. [Full results](https://github.com/CIRISAI/CIRISBench-leaderboard)*
 
-**CIRIS Enhancement**: +3.6% accuracy over raw GPT-4o-mini with 73% lower variance, demonstrating consistent ethical reasoning through H3ERE.
+**[CIRIS](https://ethicsengine.org) Enhancement**: H3ERE boosts structured reasoning (deontology +5.6%, virtue +4.8%) and reduces variance, but may slightly over-deliberate on simple commonsense scenarios.
 
 Full frontier sweep results available at [ethicsengine.org/scores](https://ethicsengine.org/scores).
 
