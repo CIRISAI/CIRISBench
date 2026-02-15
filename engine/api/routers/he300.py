@@ -47,7 +47,8 @@ from schemas.he300 import (
     HE300CatalogResponse,
     EvaluationDetail,
 )
-from core.he300_runner import heuristic_classify
+from core.he300_runner import heuristic_classify, ScenarioInput
+from utils.he300_loader import load_he300
 from core.simple_llm import classify_ethical_response, get_llm_config
 from schemas.he300_validation import (
     ValidationResult,
@@ -1739,6 +1740,10 @@ class AgentBeatsBenchmarkRequest(BaseModel):
         le=300,
         description="Number of scenarios to evaluate (max 300)"
     )
+    benchmark_version: str = Field(
+        default="1.0",
+        description="HE-300 version: '1.0' (75/75/50/50/50), '1.1' (50/100/50/50/50), '1.2' (50/50/75/50/75)"
+    )
     categories: Optional[List[str]] = Field(
         default=None,
         description="Categories to include (default: all)"
@@ -1940,6 +1945,7 @@ async def run_agentbeats_benchmark(
     logger.info("[BENCHMARK]   Protocol       : %s", request.protocol)
     logger.info("[BENCHMARK]   Concurrency    : %d", request.concurrency)
     logger.info("[BENCHMARK]   Sample Size    : %d", request.sample_size)
+    logger.info("[BENCHMARK]   Version        : %s", request.benchmark_version)
     logger.info("[BENCHMARK]   Seed           : %d", seed)
     logger.info("[BENCHMARK]   Semantic Eval  : %s", request.semantic_evaluation)
     logger.info("=" * 70)
@@ -1953,54 +1959,34 @@ async def run_agentbeats_benchmark(
         "agent_name": request.agent_name,
         "protocol": request.protocol,
         "concurrency": request.concurrency,
+        "benchmark_version": request.benchmark_version,
     })
 
-    # Load and sample scenarios
-    all_scenarios = get_all_scenarios()
+    # Load scenarios using the versioned loader
+    # This uses the correct category distribution for each version:
+    # - v1.0: 75/75/50/50/50 (CS/CS-Hard/Deont/Just/Virt)
+    # - v1.1: 50/100/50/50/50 (harder commonsense emphasis)
+    # - v1.2: 50/50/75/50/75 (virtue/deontology emphasis)
+    scenario_inputs = load_he300(seed=seed, version=request.benchmark_version)
 
-    # Convert to format expected by sampler
-    scenarios_by_category = {}
-    for cat, scenarios in all_scenarios.items():
-        cat_key = cat.value if isinstance(cat, HE300Category) else str(cat)
-        # Filter by requested categories if specified
-        if request.categories is None or cat_key in request.categories:
-            scenarios_by_category[cat_key] = scenarios
+    # Filter by categories if specified
+    if request.categories:
+        scenario_inputs = [s for s in scenario_inputs if s.category in request.categories]
 
-    logger.info("[BENCHMARK] Loaded %d categories: %s",
-                len(scenarios_by_category),
-                ", ".join(f"{k}({len(v)})" for k, v in scenarios_by_category.items()))
+    logger.info("[BENCHMARK] Loaded %d scenarios (version=%s, seed=%d)",
+                len(scenario_inputs), request.benchmark_version, seed)
 
-    # Perform deterministic sampling
-    sampled_scenarios, scenario_ids = sample_scenarios_deterministic(
-        all_scenarios=scenarios_by_category,
-        seed=seed,
-        sample_size=request.sample_size,
-    )
-    logger.info("[BENCHMARK] Sampled %d scenarios (seed=%d)", len(sampled_scenarios), seed)
+    # Log category distribution
+    cat_counts = {}
+    for s in scenario_inputs:
+        cat_counts[s.category] = cat_counts.get(s.category, 0) + 1
+    logger.info("[BENCHMARK] Category distribution: %s", cat_counts)
 
-    if len(sampled_scenarios) == 0:
+    if len(scenario_inputs) == 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No scenarios available for the requested categories"
         )
-
-    # Convert to ScenarioInput format
-    scenario_inputs = []
-    for scenario in sampled_scenarios:
-        if isinstance(scenario, HE300ScenarioInfo):
-            scenario_inputs.append(ScenarioInput(
-                scenario_id=scenario.scenario_id,
-                category=scenario.category.value if hasattr(scenario.category, 'value') else str(scenario.category),
-                input_text=scenario.input_text,
-                expected_label=scenario.expected_label,
-            ))
-        elif isinstance(scenario, dict):
-            scenario_inputs.append(ScenarioInput(
-                scenario_id=scenario.get('scenario_id', f'unknown-{len(scenario_inputs)}'),
-                category=scenario.get('category', 'unknown'),
-                input_text=scenario.get('input_text', ''),
-                expected_label=scenario.get('expected_label', 0),
-            ))
 
     # Build evaluator LLM config if any parameters specified
     llm_config = None
