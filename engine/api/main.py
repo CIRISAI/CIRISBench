@@ -150,7 +150,19 @@ async def startup_event():
                 await session.commit()
                 logger.info("Recovered %d stale evaluations", len(stale))
     except Exception as e:
-        logger.warning("Crash recovery check failed (non-fatal): %s", e)
+        # A missing column here means the production schema does not match
+        # engine/db/models.py — every evaluation write will fail the same way.
+        # The schema is owned by CIRISNode (cirisnode/db/migrations); see
+        # engine/db/alembic/versions/README.md and CIRISAI/CIRISBench#8.
+        if "does not exist" in str(e) or "UndefinedColumn" in type(e).__name__ + str(e):
+            logger.error(
+                "SCHEMA MISMATCH: crash recovery failed because the database is missing a "
+                "column the bench model expects: %s. Bench cannot write evaluations until the "
+                "corresponding CIRISNode migration is applied (see CIRISAI/CIRISBench#8).",
+                e,
+            )
+        else:
+            logger.warning("Crash recovery check failed (non-fatal): %s", e)
 
 
 @app.on_event("shutdown")
