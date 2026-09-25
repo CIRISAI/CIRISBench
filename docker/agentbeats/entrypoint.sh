@@ -49,12 +49,10 @@ if [ -n "$AGENTBEATS_API_KEY" ] && [ -z "$ENGINE_API_KEYS" ]; then
     echo "Engine API key set from AGENTBEATS_API_KEY"
 fi
 
-# Run database migrations
-echo "Running database migrations..."
-# Engine alembic migrations (if alembic is available and DB is reachable)
-if [ -f /app/engine/alembic.ini ] || [ -f /app/alembic.ini ]; then
-    cd /app && python -m alembic upgrade head 2>/dev/null || echo "Engine alembic migrations: skipped or failed (non-fatal)"
-fi
+# Database schema is owned by CIRISNode (cirisnode/db/migrations, applied by the node at
+# startup). Bench must not migrate the shared tables — see engine/db/alembic/versions/README.md
+# and CIRISAI/CIRISBench#8. The API's startup schema check reports any mismatch loudly.
+echo "Schema owned by CIRISNode; skipping Alembic."
 
 # Execute command
 exec "$@"

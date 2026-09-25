@@ -18,6 +18,14 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase
 
 
+# Schema ownership
+# ----------------
+# These tables are created and migrated by CIRISNode (cirisnode/db/migrations/*.sql, applied by
+# cirisnode/db/migrator.py at node startup). This module must MATCH that schema; it does not
+# define it. Adding a column here without a CIRISNode migration breaks every bench write in
+# production — see CIRISAI/CIRISBench#8 and CIRISAI/CIRISNode#37 (2026-09).
+
+
 class Base(DeclarativeBase):
     pass
 
